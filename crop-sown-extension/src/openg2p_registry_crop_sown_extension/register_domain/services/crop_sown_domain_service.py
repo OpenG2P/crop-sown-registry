@@ -9,7 +9,8 @@ from openg2p_registry_core.services import G2PActivityDomainService
 # along; observations after sowing mean it is growing.
 STAGE_ORDER = {"PLANNED": 1, "LAND_PREPARED": 2, "SOWN": 3, "GROWTH_OBSERVED": 4, "HARVESTED": 5}
 STAGE_NAME = {"GROWTH_OBSERVED": "GROWING"}
-SEVERITY_ORDER = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
+# INFESTATION_SEVERITY codes (Master Data, ETH pack agriculture domain).
+SEVERITY_ORDER = {"SEV_LOW": 1, "SEV_MEDIUM": 2, "SEV_HIGH": 3}
 CONTEXT_FIELDS = ("plot_id", "crop_year", "season", "crop")
 
 

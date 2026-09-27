@@ -29,9 +29,9 @@ class G2PActivityCropSown(G2PActivity, G2PGeo):
 
     # The season and crop the context is about
     crop_year: Mapped[int] = mapped_column(Integer, nullable=True, index=True)  # Ethiopian year, e.g. 2019
-    season: Mapped[str] = mapped_column(String, nullable=True, index=True)  # CS_SEASON
+    season: Mapped[str] = mapped_column(String, nullable=True, index=True)  # CROP_SEASON (Master Data)
     crop: Mapped[str] = mapped_column(String, nullable=True, index=True)  # CROP_COMMODITY (Master Data)
-    variety: Mapped[str] = mapped_column(String, nullable=True)  # CS_SEED_VARIETY
+    variety: Mapped[str] = mapped_column(String, nullable=True)  # SEED_VARIETY (Master Data)
 
     # Measures most stages carry
     area_ha: Mapped[float] = mapped_column(Numeric(12, 4), nullable=True)

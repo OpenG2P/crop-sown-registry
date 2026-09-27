@@ -3,6 +3,8 @@ name: Checks
 # Docker-free checks before the build:
 #   * the generated seed SQL matches scripts/activity_definitions.py
 #   * the openg2p-registry pin is in lockstep across Dockerfiles and the chart
+#   * every code list and code the definitions use is in the ETH country pack
+#     (openg2p-data develop), which Master Data serves them from
 on:
   push:
     branches: ["**", "!dependabot/**"]
@@ -13,6 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: OpenG2P/openg2p-data
+          ref: develop
+          path: openg2p-data
+          sparse-checkout: packs/ETH
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -21,3 +29,7 @@ jobs:
         run: python scripts/build_seed_sql.py --check
       - name: openg2p-registry pin lockstep
         run: python -m pytest test/test_rp_pin_lockstep.py -q
+      - name: Code lists are in the ETH pack
+        env:
+          OPENG2P_DATA_DIR: openg2p-data
+        run: python -m pytest test/test_code_lists_in_pack.py -q

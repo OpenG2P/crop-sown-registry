@@ -6,8 +6,11 @@ crop-sown-extension/.../meta_data/. Edit here, regenerate, commit both.
 Fields follow the crop-sown sample registry, extended with items from the FAO
 World Programme for the Census of Agriculture 2020 crop module and Ethiopia's
 CSA Agricultural Sample Survey (Meher/Belg seasons, UREA/DAP/NPS fertilisers,
-quintals). Codes are Ethiopia-defined lists (prefix CS_) except CROP_COMMODITY,
-which comes from Master Data (the ETH country pack).
+quintals).
+
+Every coded field names a Master Data code list, read live from Master Data
+(the ETH country pack's agriculture domain, openg2p-data
+packs/ETH/domains/agriculture). This registry keeps no code lists of its own.
 """
 
 REGISTER_ID = "c5000000-0000-4000-8000-000000000001"
@@ -20,7 +23,7 @@ _CONTEXT = {
     "fayda_fan": {"type": "string", "title": "Fayda FAN", "pattern": "^[0-9]{12,16}$"},
     "plot_id": {"type": "string", "title": "Plot (Farmer Registry land record)", "minLength": 3},
     "crop_year": {"type": "integer", "title": "Crop year (Ethiopian calendar)", "minimum": 2000, "maximum": 2100},
-    "season": {"type": "string", "title": "Season", "enum": ["MEHER", "BELG", "IRRIGATION"]},
+    "season": {"type": "string", "title": "Season"},
     "crop": {"type": "string", "title": "Crop"},
     "crop_other": {"type": "string", "title": "Crop (if other)"},
     "da_id": {"type": "string", "title": "Development agent ID"},
@@ -62,8 +65,8 @@ def _schema(required: list[str], properties: dict) -> dict:
 
 _REFERENCES = {
     "crop": {"kind": "ATTRIBUTE", "attribute": "CROP_COMMODITY", "mode": "STRICT"},
-    "season": {"kind": "ATTRIBUTE", "attribute": "CS_SEASON", "mode": "STRICT"},
-    "variety": {"kind": "ATTRIBUTE", "attribute": "CS_SEED_VARIETY", "mode": "LENIENT"},
+    "season": {"kind": "ATTRIBUTE", "attribute": "CROP_SEASON", "mode": "STRICT"},
+    "variety": {"kind": "ATTRIBUTE", "attribute": "SEED_VARIETY", "mode": "LENIENT"},
     # Identifiers held by other registries: format only, never blocking.
     "farmer_id": {"kind": "EXTERNAL", "system": "farmer-registry.farmer", "mode": "LENIENT",
                   "pattern": "^[A-Za-z0-9-]{3,64}$", "lookup": False},
@@ -101,8 +104,8 @@ ACTIVITY_TYPES = [
         "is_repeatable": False,
         "max_backdate_days": 365,
         "allow_future_dated": False,
-        "reference_rules": _refs(("cropping_system", "CS_CROPPING_SYSTEM"),
-                                 ("planned_fertilizers.fertilizer_type", "CS_FERTILIZER_TYPE")),
+        "reference_rules": _refs(("cropping_system", "CROPPING_SYSTEM"),
+                                 ("planned_fertilizers.fertilizer_type", "FERTILIZER_TYPE")),
         "ethiopian_date_fields": ["planned_sowing_date"],
     },
     {
@@ -122,9 +125,9 @@ ACTIVITY_TYPES = [
         "requires_prior_types": ["PLANNED"],
         "sequence_enforcement": "WARN",
         "max_backdate_days": 365,
-        "reference_rules": _refs(("preparation_method", "CS_LAND_PREPARATION"),
-                                 ("irrigation_source", "CS_IRRIGATION_SOURCE"),
-                                 ("irrigation_method", "CS_IRRIGATION_METHOD"),
+        "reference_rules": _refs(("preparation_method", "LAND_PREPARATION_METHOD"),
+                                 ("irrigation_source", "IRRIGATION_SOURCE"),
+                                 ("irrigation_method", "IRRIGATION_METHOD"),
                                  ("soil_fertility", "SOIL_FERTILITY")),
     },
     {
@@ -151,10 +154,10 @@ ACTIVITY_TYPES = [
         "due_rule": {"after_type": "PLANNED", "min_days": 0, "max_days": 60},
         "max_backdate_days": 180,
         "requires_verification": True,
-        "reference_rules": _refs(("cropping_system", "CS_CROPPING_SYSTEM"), ("seed_type", "CS_SEED_TYPE"),
-                                 ("seed_source", "CS_SEED_SOURCE"), ("sowing_method", "CS_SOWING_METHOD"),
-                                 ("machinery_used", "CS_MACHINERY"),
-                                 ("fertilizers.fertilizer_type", "CS_FERTILIZER_TYPE")),
+        "reference_rules": _refs(("cropping_system", "CROPPING_SYSTEM"), ("seed_type", "SEED_TYPE"),
+                                 ("seed_source", "SEED_SOURCE"), ("sowing_method", "SOWING_METHOD"),
+                                 ("machinery_used", "FARM_MACHINERY"),
+                                 ("fertilizers.fertilizer_type", "FERTILIZER_TYPE")),
     },
     {
         "activity_type": "CLUSTER_ENROLLED",
@@ -171,7 +174,7 @@ ACTIVITY_TYPES = [
         }),
         "is_repeatable": False,
         "max_backdate_days": 365,
-        "reference_rules": _refs(("agro_ecological_zone", "CS_AGRO_ECOLOGICAL_ZONE"),
+        "reference_rules": _refs(("agro_ecological_zone", "AGRO_ECOLOGICAL_ZONE"),
                                  ("water_source", "WATER_SOURCE")),
     },
     {
@@ -191,7 +194,7 @@ ACTIVITY_TYPES = [
         "requires_prior_types": ["SOWN"],
         "sequence_enforcement": "BLOCK",
         "max_backdate_days": 60,
-        "reference_rules": _refs(("growth_stage", "CS_GROWTH_STAGE"), ("crop_condition", "CS_CROP_CONDITION")),
+        "reference_rules": _refs(("growth_stage", "CROP_GROWTH_STAGE"), ("crop_condition", "CROP_CONDITION")),
     },
     {
         "activity_type": "INFESTATION_REPORTED",
@@ -213,8 +216,8 @@ ACTIVITY_TYPES = [
         "requires_prior_types": ["SOWN"],
         "sequence_enforcement": "BLOCK",
         "max_backdate_days": 60,
-        "reference_rules": _refs(("infestation_type", "CS_INFESTATION_TYPE"), ("agent", "CS_INFESTATION_AGENT"),
-                                 ("severity", "CS_SEVERITY"), ("action_taken", "CS_CONTROL_ACTION")),
+        "reference_rules": _refs(("infestation_type", "INFESTATION_TYPE"), ("agent", "INFESTATION_AGENT"),
+                                 ("severity", "INFESTATION_SEVERITY"), ("action_taken", "PEST_CONTROL_ACTION")),
     },
     {
         "activity_type": "DAMAGE_REPORTED",
@@ -231,7 +234,7 @@ ACTIVITY_TYPES = [
         "requires_prior_types": ["SOWN"],
         "sequence_enforcement": "BLOCK",
         "max_backdate_days": 60,
-        "reference_rules": _refs(("cause", "CS_DAMAGE_CAUSE")),
+        "reference_rules": _refs(("cause", "CROP_DAMAGE_CAUSE")),
     },
     {
         "activity_type": "HARVESTED",
@@ -259,56 +262,6 @@ ACTIVITY_TYPES = [
     },
 ]
 
-# Ethiopia-defined code lists owned by this registry. CROP_COMMODITY,
-# SOIL_FERTILITY and WATER_SOURCE come from Master Data's agriculture domain.
-CODE_LISTS = {
-    "CS_SEASON": ("Season", [("MEHER", "Meher (main rains)"), ("BELG", "Belg (short rains)"),
-                             ("IRRIGATION", "Irrigation (dry season)")]),
-    "CS_CROPPING_SYSTEM": ("Cropping system", [("PURE", "Pure stand"), ("MIXED", "Mixed"),
-                                               ("INTERCROPPED", "Intercropped")]),
-    "CS_LAND_PREPARATION": ("Land preparation method", [("OXEN", "Oxen plough"), ("TRACTOR", "Tractor"),
-                                                        ("MANUAL", "Manual (hoe)"), ("ZERO_TILLAGE", "Zero tillage")]),
-    "CS_IRRIGATION_SOURCE": ("Irrigation source", [("RIVER", "River diversion"), ("DAM", "Dam / reservoir"),
-                                                   ("WELL", "Hand-dug or deep well"), ("SPRING", "Spring"),
-                                                   ("POND", "Pond / water harvesting")]),
-    "CS_IRRIGATION_METHOD": ("Irrigation method", [("FURROW", "Furrow"), ("FLOOD", "Flood / basin"),
-                                                   ("SPRINKLER", "Sprinkler"), ("DRIP", "Drip")]),
-    "CS_SEED_TYPE": ("Seed type", [("IMPROVED", "Improved"), ("LOCAL", "Local"), ("HYBRID", "Hybrid")]),
-    "CS_SEED_SOURCE": ("Seed source", [("COOPERATIVE", "Cooperative / union"), ("GOVERNMENT", "Government / DA"),
-                                       ("MARKET", "Market"), ("OWN_SAVED", "Own saved"), ("NGO", "NGO / project"),
-                                       ("NEIGHBOUR", "Neighbour / exchange")]),
-    "CS_SOWING_METHOD": ("Sowing method", [("BROADCAST", "Broadcast"), ("ROW", "Row planting"),
-                                           ("TRANSPLANT", "Transplanting")]),
-    "CS_FERTILIZER_TYPE": ("Fertiliser type", [("UREA", "Urea"), ("DAP", "DAP"), ("NPS", "NPS"), ("NPSB", "NPSB"),
-                                               ("NPSZnB", "NPSZnB"), ("COMPOST", "Compost"), ("MANURE", "Manure")]),
-    "CS_MACHINERY": ("Machinery", [("TRACTOR", "Tractor"), ("ROW_PLANTER", "Row planter"),
-                                   ("THRESHER", "Thresher"), ("COMBINE", "Combine harvester"),
-                                   ("SPRAYER", "Sprayer"), ("WATER_PUMP", "Water pump")]),
-    "CS_GROWTH_STAGE": ("Growth stage", [("EMERGENCE", "Emergence"), ("VEGETATIVE", "Vegetative"),
-                                         ("FLOWERING", "Flowering"), ("GRAIN_FILLING", "Grain filling"),
-                                         ("MATURITY", "Maturity")]),
-    "CS_CROP_CONDITION": ("Crop condition", [("GOOD", "Good"), ("FAIR", "Fair"), ("POOR", "Poor"),
-                                             ("FAILED", "Failed")]),
-    "CS_INFESTATION_TYPE": ("Infestation type", [("PEST", "Pest"), ("DISEASE", "Disease"), ("WEED", "Weed")]),
-    "CS_INFESTATION_AGENT": ("Pest, disease or weed", [
-        ("FALL_ARMYWORM", "Fall armyworm"), ("DESERT_LOCUST", "Desert locust"), ("STALK_BORER", "Stalk borer"),
-        ("APHIDS", "Aphids"), ("WHEAT_RUST", "Wheat rust"), ("MAIZE_LETHAL_NECROSIS", "Maize lethal necrosis"),
-        ("SEPTORIA", "Septoria"), ("STRIGA", "Striga"), ("PARTHENIUM", "Parthenium"), ("OTHER", "Other")]),
-    "CS_SEVERITY": ("Severity", [("LOW", "Low"), ("MEDIUM", "Medium"), ("HIGH", "High")]),
-    "CS_CONTROL_ACTION": ("Action taken", [("CHEMICAL", "Chemical"), ("BIOLOGICAL", "Biological"),
-                                           ("CULTURAL", "Cultural / manual"), ("NONE", "None")]),
-    "CS_DAMAGE_CAUSE": ("Damage cause", [("DROUGHT", "Drought / moisture stress"), ("FLOOD", "Flood / waterlogging"),
-                                         ("HAIL", "Hail"), ("FROST", "Frost"), ("WIND", "Wind"),
-                                         ("WILDLIFE", "Wildlife / livestock"), ("OTHER", "Other")]),
-    "CS_AGRO_ECOLOGICAL_ZONE": ("Agro-ecological zone", [("BEREHA", "Bereha (hot lowland)"), ("KOLLA", "Kolla (lowland)"),
-                                                         ("WEYNA_DEGA", "Weyna Dega (midland)"), ("DEGA", "Dega (highland)"),
-                                                         ("WURCH", "Wurch (cold highland)")]),
-    "CS_SEED_VARIETY": ("Seed variety", [
-        ("TEFF_QUNCHO", "Teff – Quncho"), ("TEFF_BOSET", "Teff – Boset"), ("WHEAT_KAKABA", "Wheat – Kakaba"),
-        ("WHEAT_DANDAA", "Wheat – Danda'a"), ("MAIZE_BH661", "Maize – BH661"), ("MAIZE_BH546", "Maize – BH546"),
-        ("BARLEY_HB1307", "Barley – HB1307"), ("SORGHUM_MELKAM", "Sorghum – Melkam")]),
-}
-
 INDICATORS = [
     ("SOWN_AREA_BY_CROP", "Area sown by crop", "ha",
      {"measure": {"fn": "sum", "field": "area_sown_ha"}, "group_by": ["crop_year", "season", "crop"]}, 10),
@@ -322,7 +275,7 @@ INDICATORS = [
      {"measure": {"fn": "count_distinct", "field": "farmer_id"}, "group_by": ["crop_year", "season"]}, 50),
     ("INFESTED_CROPS", "Crops with infestations", "crops",
      {"measure": {"fn": "count", "field": "context_id"}, "group_by": ["crop_year", "season", "crop"],
-      "filters": {"max_infestation_severity": ["LOW", "MEDIUM", "HIGH"]}}, 60),
+      "filters": {"max_infestation_severity": ["SEV_LOW", "SEV_MEDIUM", "SEV_HIGH"]}}, 60),
 ]
 
 # ODK Central forms (inactive until an ODK project/form id is set for the environment).

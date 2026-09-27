@@ -12,5 +12,5 @@ with a current-state projection per crop season.
 |---|---|
 | `register_domain/models/crop_sown.py` | `G2PActivityCropSown` (activity table, promoted columns) and `G2PActivityProjectionCropSown` (crop season status) |
 | `register_domain/services/crop_sown_domain_service.py` | Context key, derived yield, plausibility warnings, projection |
-| `meta_data/` | Seed SQL. Activity types, code lists, indicators and ODK mapping are **generated** by `scripts/build_seed_sql.py` from `scripts/activity_definitions.py` |
+| `meta_data/` | Seed SQL. Activity types, indicators and ODK mapping are **generated** by `scripts/build_seed_sql.py` from `scripts/activity_definitions.py` |
 | `templates/` | DCI rendering of an activity |

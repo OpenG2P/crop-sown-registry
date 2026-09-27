@@ -60,17 +60,18 @@ def main() -> int:
             "occurred_at": (now - timedelta(days=days_ago)).isoformat(),
             "idempotency_key": f"smoke:{run}:{kind}",
             "payload": {"farmer_id": f"FR-SMOKE-{run}", "plot_id": plot, "crop_year": 2019,
-                        "season": "MEHER", "crop": "TEFF", **payload},
+                        "season": "SEASON_MEHER", "crop": "CROP_TEFF", **payload},
         }
 
+    # Codes are Master Data's (ETH pack, agriculture domain).
     season = [
-        activity("PLANNED", 110, area_ha=1.0, variety="TEFF_QUNCHO", cropping_system="PURE"),
-        activity("LAND_PREPARED", 105, preparation_method="OXEN", soil_fertility="MEDIUM"),
-        activity("SOWN", 100, area_ha=0.9, seed_type="IMPROVED", seed_source="COOPERATIVE", sowing_method="ROW",
-                 fertilizers=[{"fertilizer_type": "NPS", "quantity_kg": 100}]),
-        activity("GROWTH_OBSERVED", 55, growth_stage="VEGETATIVE", crop_condition="GOOD", area_ha=0.9),
-        activity("INFESTATION_REPORTED", 45, infestation_type="PEST", agent="FALL_ARMYWORM", severity="MEDIUM",
-                 area_ha=0.2, action_taken="CHEMICAL"),
+        activity("PLANNED", 110, area_ha=1.0, variety="VAR_TEFF_QUNCHO", cropping_system="CSYS_PURE"),
+        activity("LAND_PREPARED", 105, preparation_method="LPM_OXEN", soil_fertility="SF_MEDIUM"),
+        activity("SOWN", 100, area_ha=0.9, seed_type="SEED_IMPROVED", seed_source="SEEDSRC_COOPERATIVE",
+                 sowing_method="SOW_ROW", fertilizers=[{"fertilizer_type": "FERT_NPS", "quantity_kg": 100}]),
+        activity("GROWTH_OBSERVED", 55, growth_stage="GS_VEGETATIVE", crop_condition="CC_GOOD", area_ha=0.9),
+        activity("INFESTATION_REPORTED", 45, infestation_type="INFT_PEST", agent="AGENT_FALL_ARMYWORM",
+                 severity="SEV_MEDIUM", area_ha=0.2, action_taken="CTRL_CHEMICAL"),
         activity("HARVESTED", 2, area_ha=0.9, quantity_qt=15.3, stored_qt=8, sold_qt=5, consumed_qt=2),
     ]
     failures = []

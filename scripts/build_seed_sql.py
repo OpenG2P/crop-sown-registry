@@ -89,20 +89,6 @@ def register_sql() -> str:
     return HEADER + upsert("g2p_register_definitions", row, "register_id")
 
 
-def code_lists_sql() -> str:
-    attributes, values = [HEADER], [HEADER]
-    for code, (display, items) in d.CODE_LISTS.items():
-        attributes.append(upsert("g2p_attributes", {
-            "attribute_id": code, "attribute_code": code, "attribute_display": display, "is_hierarchical": False,
-        }, "attribute_id"))
-        for order, (value_code, value_display) in enumerate(items, start=1):
-            values.append(upsert("g2p_attribute_values", {
-                "value_id": f"{code}:{value_code}", "attribute_id": code, "value_code": value_code,
-                "value_display": value_display, "parent_value_id": None, "sort_order": order,
-            }, "value_id"))
-    return "".join(attributes), "".join(values)
-
-
 def indicators_sql() -> str:
     out = [HEADER]
     for index, (code, name, unit, definition, order) in enumerate(d.INDICATORS, start=1):
@@ -127,14 +113,13 @@ def odk_sql() -> str:
 
 
 def outputs() -> dict[Path, str]:
-    attributes, values = code_lists_sql()
+    # No code lists: they live in Master Data (ETH pack, agriculture domain) and
+    # the platform reads them there.
     return {
         META / "register-metadata/g2p_register_definitions.sql": register_sql(),
         META / "activity-metadata/10_g2p_activity_types.sql": activity_types_sql(),
         META / "activity-metadata/20_g2p_activity_indicators.sql": indicators_sql(),
         META / "activity-metadata/30_g2p_activity_odk_forms.sql": odk_sql(),
-        META / "lookup-data/g2p_attributes.sql": attributes,
-        META / "lookup-data/g2p_attribute_values.sql": values,
     }
 
 

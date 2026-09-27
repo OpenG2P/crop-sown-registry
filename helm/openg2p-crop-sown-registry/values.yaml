@@ -58,11 +58,11 @@ registry:
     loadSampleData: false
     loadImages: false
     loadTemplates: true
-    # CROP_COMMODITY, SOIL_FERTILITY and WATER_SOURCE come from Master Data's
-    # agriculture domain; the CS_* lists are seeded by this chart.
-    loadAttributes: true
-    attributeDomains:
-      - agriculture
+    # Code lists are NOT seeded or copied into this registry: activity reference
+    # checks read every list (crop, season, seed, fertiliser, pest, ...) live
+    # from Master Data. They are the ETH pack's agriculture domain, loaded by the
+    # master-data chart with geoSeed.domains: [agriculture] — set there, not
+    # here. Without it every activity is rejected on its crop code.
     syncGeoWidgets: false
 
   iamRegister:
