@@ -1,0 +1,2 @@
+from .g2p_register_domain_factory import G2PRegisterDomainFactory
+from .g2p_id_generator_factory import G2PIdGeneratorFactory

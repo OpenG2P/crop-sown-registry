@@ -1,0 +1,22 @@
+{%- if expanded.errors is defined and expanded.errors -%}
+{
+  "errors": [
+    {
+      "code": "{{ expanded.errors[0].code }}",
+      "message": "{{ expanded.errors[0].message }}"
+    }
+  ]
+}
+{%- else -%}
+{
+  "message": {
+    "ack_status": "ACK",
+    "timestamp": "{{ expanded.response_header.response_timestamp }}",
+    "error": {
+      "code": "{{ expanded.response_header.response_error_code }}",
+      "message": "{{ expanded.response_header.response_error_message }}"
+    },
+    "correlation_id": "{{ expanded.response_body.response_payload.correlation_id }}"
+  }
+}
+{%- endif -%}

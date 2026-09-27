@@ -1,0 +1,80 @@
+# Crop Sown Registry — values overlay for the openg2p-registry chart.
+#
+#     helm repo add openg2p https://openg2p.github.io/openg2p-helm
+#     helm dependency build ./helm/openg2p-crop-sown-registry
+#     helm -n <ns> install csr ./helm/openg2p-crop-sown-registry
+#
+# global.* propagates to the subchart; registry.* configures the subchart itself.
+# Everything not set here is inherited from openg2p-registry.
+
+global:
+  baseDomain: '{{ .Release.Namespace }}.openg2p.org'
+  registryVariant: 'crop-sown-registry'
+  registryHostname: '{{ .Release.Name }}.{{ tpl .Values.global.baseDomain $ }}'
+
+  postgresqlHost: commons-postgresql
+  registryDB: '{{ printf "%s" .Release.Name | replace "-" "_" }}'
+  registryDBPort: 5432
+  registryDBUser: '{{ printf "%s_user" .Release.Name | replace "-" "_" }}'
+  registryDBSecret: '{{ .Release.Name }}'
+  registryDBUserPasswordKey: '{{ .Release.Name }}-db-user'
+  masterDataDB: 'master_data'
+  masterDataDBPort: 5432
+  masterDataDBUser: 'master_data_user'
+  masterDataDBSecret: 'master-data-db'
+  masterDataDBUserPasswordKey: 'master-data-db-user'
+
+registry:
+  # Crop-sown images, each FROM the matching openg2p-registry base image. CI
+  # rewrites these tags to the freshly built version.
+  staffApi:
+    image:
+      repository: openg2p/openg2p-crop-sown-registry-staff-api
+      tag: 0.0.0-develop
+  partnerApi:
+    image:
+      repository: openg2p/openg2p-crop-sown-registry-partner-api
+      tag: 0.0.0-develop
+  celeryWorker:
+    image:
+      repository: openg2p/openg2p-crop-sown-registry-celery
+      tag: 0.0.0-develop
+    # Helm merges maps, so these add to the subchart's worker env.
+    envVars:
+      # ODK Central in the same namespace (commons-services). Credentials come
+      # from a Secret the operator creates; see docs/deployment.md.
+      REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_ENABLED: "false"
+      REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_BASE_URL: "http://commons-services-odk-central-backend"
+  celeryBeat:
+    image:
+      repository: openg2p/openg2p-crop-sown-registry-celery
+      tag: 0.0.0-develop
+  dbSeed:
+    image:
+      repository: openg2p/openg2p-crop-sown-registry-db-seed
+      tag: 0.0.0-develop
+    loadGeoData: false
+    # No sample records: activities are created through the APIs.
+    loadSampleData: false
+    loadImages: false
+    loadTemplates: true
+    # CROP_COMMODITY, SOIL_FERTILITY and WATER_SOURCE come from Master Data's
+    # agriculture domain; the CS_* lists are seeded by this chart.
+    loadAttributes: true
+    attributeDomains:
+      - agriculture
+    syncGeoWidgets: false
+
+  iamRegister:
+    applicationDescription: "Crop Sown Registry"
+
+  # The Crop Sown Registry issues no functional IDs (it has only an activity
+  # register), so it needs no ID generator.
+  idgenerator:
+    enabled: false
+
+  # The platform sanity suite exercises record registers (DCI search on a
+  # register record, change requests). Activity-register checks live in this
+  # repo's test/ and run against a deployed instance with scripts/e2e_smoke.py.
+  sanity:
+    enabled: false

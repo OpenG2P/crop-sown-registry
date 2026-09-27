@@ -1,0 +1,43 @@
+{#-
+  One Crop Sown activity as a DCI registry record.
+
+  The top-level keys are the consent scopes: the partner API keeps only the
+  keys the Consent Manager allows (crop_season is the minimum a lender needs;
+  farmer_reference and location are more sensitive).
+-#}
+{%- set a = expanded -%}
+{%- set p = a.get("payload") or {} -%}
+{
+  "@type": "spdci-extensions-agri:CropActivity",
+  "activity": {
+    "activity_id": {{ a.get("activity_id") | tojson }},
+    "activity_type": {{ a.get("activity_type") | tojson }},
+    "occurred_at": {{ a.get("occurred_at") | tojson }},
+    "occurred_on_ec": {{ a.get("occurred_on_ec") | tojson }},
+    "recorded_at": {{ a.get("recorded_at") | tojson }},
+    "channel": {{ a.get("channel") | tojson }},
+    "verification_status": {{ a.get("verification_status") | tojson }}
+  },
+  "crop_season": {
+    "plot_id": {{ a.get("plot_id") | tojson }},
+    "crop_year": {{ a.get("crop_year") | tojson }},
+    "season": {{ a.get("season") | tojson }},
+    "crop": {{ a.get("crop") | tojson }},
+    "variety": {{ a.get("variety") | tojson }},
+    "cluster_id": {{ a.get("cluster_id") | tojson }}
+  },
+  "measures": {
+    "area_ha": {{ a.get("area_ha") | tojson }},
+    "quantity_qt": {{ a.get("quantity_qt") | tojson }},
+    "details": {{ p | tojson }}
+  },
+  "farmer_reference": {
+    "farmer_id": {{ a.get("farmer_id") | tojson }},
+    "fayda_fan": {{ a.get("fayda_fan") | tojson }}
+  },
+  "location": {
+    "latitude": {{ a.get("latitude") | tojson }},
+    "longitude": {{ a.get("longitude") | tojson }},
+    "geo_lowest_level_value_id": {{ a.get("geo_lowest_level_value_id") | tojson }}
+  }
+}

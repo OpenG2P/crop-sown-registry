@@ -1,0 +1,48 @@
+apiVersion: v2
+name: openg2p-crop-sown-registry
+description: |
+  OpenG2P Crop Sown Registry — an activity register of what farmers plan, sow,
+  observe and harvest, plot by plot and season by season.
+
+  A thin package over the shared openg2p-registry chart: this chart owns no
+  templates, only a values overlay (variant identity, hostname, the crop-sown
+  images, seed toggles, activity/ODK settings). Every deployment, service,
+  gateway, keycloak/iam wiring and the db-seed machinery come from the
+  openg2p-registry subchart.
+type: application
+
+# Static placeholder; CI derives the published version from git.
+version: 0.0.0-develop
+appVersion: "develop"
+
+keywords:
+  - openg2p
+  - registry
+  - crop-sown-registry
+  - activity-register
+home: https://openg2p.org
+icon: https://openg2p.github.io/openg2p-helm/openg2p-logo.png
+sources:
+  - https://github.com/OpenG2P/crop-sown-registry
+maintainers:
+  - name: OpenG2P
+    email: info@openg2p.org
+
+# 0.0.0-activity is a deliberate placeholder: no published openg2p-registry
+# includes activity registers yet (registry-platform feature/activity-register).
+# Once one is published, pin it here and in docker/*/Dockerfile together with
+#     ./scripts/bump-rp-version.sh <version>
+# Until then CI fails fast on the missing base image instead of shipping images
+# built on a platform without activity registers. Local builds pass
+# --build-arg RP_VERSION=<locally built tag>.
+dependencies:
+  - name: openg2p-registry
+    alias: registry
+    version: 0.0.0-activity
+    repository: https://openg2p.github.io/openg2p-helm
+
+annotations:
+  catalog.cattle.io/display-name: "OpenG2P Crop Sown Registry"
+  catalog.cattle.io/certified: partner
+  catalog.cattle.io/kube-version: ">=1.23.0-0"
+  openg2p.org/add-to-rancher: ""

@@ -1,0 +1,157 @@
+# Hybrid run: Crop Sown Registry containers on a laptop, commons on a cluster.
+#
+# Uses the cluster's Postgres (a dedicated csr_dev database), Master Data DB and
+# API, and ODK Central through local/port-forward.sh. Redis and MinIO run
+# locally so nothing shared on the cluster (e.g. the templates bucket) is
+# touched. The images are the ones the Helm chart deploys, configured with the
+# chart's env var names, so a working hybrid run is a good sign for the cluster.
+#
+#   ./local/port-forward.sh                       # terminal 1
+#   ./local/make-env.sh <csr_dev password file>   # once
+#   docker compose -f local/docker-compose.hybrid.yml --env-file local/.env up
+#
+# The staff API is started too (migration + health), but calling it needs a
+# token from the cluster's Keycloak with Crop Sown roles, which only exist once
+# the chart's iam-register job has run; test staff flows on the Helm install.
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["16379:6379"]
+
+  minio:
+    # The image the cluster runs (Bitnami-based); creates the buckets on start.
+    image: openg2p/minio:2023.12.23-debian-11-r2
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_DEFAULT_BUCKETS: "default,templates,documents"
+    ports: ["19000:9000", "19001:9001"]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      retries: 30
+
+  staff-api:
+    image: openg2p/openg2p-crop-sown-registry-staff-api:${CSR_TAG:-local}
+    depends_on: [redis, minio]
+    ports: ["18001:8000"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    environment:
+      STAFF_PORTAL_NO_OF_WORKERS: "1"
+      REGISTRY_STAFF_PORTAL_API_DB_HOSTNAME: host.docker.internal
+      REGISTRY_STAFF_PORTAL_API_DB_PORT: "15432"
+      REGISTRY_STAFF_PORTAL_API_DB_DBNAME: csr_dev
+      REGISTRY_STAFF_PORTAL_API_DB_USERNAME: csr_dev_user
+      REGISTRY_STAFF_PORTAL_API_DB_PASSWORD: ${CSR_DB_PASSWORD}
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DRIVER: postgresql+asyncpg
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME: host.docker.internal
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT: "15432"
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME: master_data
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_USERNAME: master_data_user
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PASSWORD: ${MASTER_DATA_DB_PASSWORD}
+      REGISTRY_STAFF_PORTAL_API_AUTH_REDIS_URL: redis://redis:6379/0
+      REGISTRY_CORE_REGISTRANT_AUTH_REDIS_URL: redis://redis:6379/1
+      REGISTRY_STAFF_PORTAL_API_MINIO_ENDPOINT: minio:9000
+      REGISTRY_STAFF_PORTAL_API_MINIO_ACCESS_KEY: minioadmin
+      REGISTRY_STAFF_PORTAL_API_MINIO_SECRET_KEY: minioadmin
+      REGISTRY_STAFF_PORTAL_API_MINIO_SECURE: "false"
+      REGISTRY_STAFF_PORTAL_API_AUDIT_ENABLED: "false"
+      REGISTRY_STAFF_PORTAL_API_AWE_ENABLED: "false"
+      REGISTRY_STAFF_PORTAL_API_CSRF_ENABLED: "false"
+
+  partner-api:
+    image: openg2p/openg2p-crop-sown-registry-partner-api:${CSR_TAG:-local}
+    depends_on: [staff-api, minio]
+    ports: ["18006:8000"]
+    environment:
+      PARTNER_NO_OF_WORKERS: "1"
+      REGISTRY_PARTNER_API_DB_HOSTNAME: host.docker.internal
+      REGISTRY_PARTNER_API_DB_PORT: "15432"
+      REGISTRY_PARTNER_API_DB_DBNAME: csr_dev
+      REGISTRY_PARTNER_API_DB_USERNAME: csr_dev_user
+      REGISTRY_PARTNER_API_DB_PASSWORD: ${CSR_DB_PASSWORD}
+      REGISTRY_PARTNER_API_PORT: "8000"
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_DRIVER: postgresql+asyncpg
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME: host.docker.internal
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT: "15432"
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME: master_data
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_USERNAME: master_data_user
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_PASSWORD: ${MASTER_DATA_DB_PASSWORD}
+      REGISTRY_PARTNER_API_MINIO_ENDPOINT: minio:9000
+      REGISTRY_PARTNER_API_MINIO_ACCESS_KEY: minioadmin
+      REGISTRY_PARTNER_API_MINIO_SECRET_KEY: minioadmin
+      REGISTRY_PARTNER_API_MINIO_SECURE: "false"
+      # Hybrid only: no PM keys or CM for this partner; the Helm install turns both on.
+      REGISTRY_PARTNER_API_SIGNATURE_VALIDATION_ENABLED: "false"
+      REGISTRY_PARTNER_API_CONSENT_ENFORCEMENT_ENABLED: "false"
+      REGISTRY_PARTNER_API_AUDIT_ENABLED: "false"
+
+  celery-worker:
+    image: openg2p/openg2p-crop-sown-registry-celery:${CSR_TAG:-local}
+    depends_on: [redis, staff-api]
+    environment:
+      CELERY_APP: openg2p_registry_celery_worker.main.celery_app
+      CELERY_OPTS: "worker --loglevel=info -Q registry_worker_queue"
+      REGISTRY_CELERY_WORKERS_DB_HOSTNAME: host.docker.internal
+      REGISTRY_CELERY_WORKERS_DB_PORT: "15432"
+      REGISTRY_CELERY_WORKERS_DB_DBNAME: csr_dev
+      REGISTRY_CELERY_WORKERS_DB_USERNAME: csr_dev_user
+      REGISTRY_CELERY_WORKERS_DB_PASSWORD: ${CSR_DB_PASSWORD}
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DRIVER: postgresql+asyncpg
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME: host.docker.internal
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT: "15432"
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME: master_data
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME: master_data_user
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD: ${MASTER_DATA_DB_PASSWORD}
+      REGISTRY_CELERY_WORKERS_CELERY_BROKER_URL: redis://redis:6379/0
+      REGISTRY_CELERY_WORKERS_CELERY_BACKEND_URL: redis://redis:6379/0
+      REGISTRY_CELERY_WORKERS_WORKER_QUEUE: registry_worker_queue
+      REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_ENABLED: ${ODK_ENABLED:-false}
+      REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_BASE_URL: http://host.docker.internal:18383
+      REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_USERNAME: ${ODK_USERNAME:-}
+      REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_PASSWORD: ${ODK_PASSWORD:-}
+
+  celery-beat:
+    image: openg2p/openg2p-crop-sown-registry-celery:${CSR_TAG:-local}
+    depends_on: [redis]
+    environment:
+      CELERY_APP: openg2p_registry_celery_beat.main.celery_app
+      CELERY_OPTS: "worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db"
+      REGISTRY_CELERY_BEAT_DB_HOSTNAME: host.docker.internal
+      REGISTRY_CELERY_BEAT_DB_PORT: "15432"
+      REGISTRY_CELERY_BEAT_DB_DBNAME: csr_dev
+      REGISTRY_CELERY_BEAT_DB_USERNAME: csr_dev_user
+      REGISTRY_CELERY_BEAT_DB_PASSWORD: ${CSR_DB_PASSWORD}
+      REGISTRY_CELERY_BEAT_CELERY_BROKER_URL: redis://redis:6379/0
+      REGISTRY_CELERY_BEAT_CELERY_BACKEND_URL: redis://redis:6379/0
+      REGISTRY_CELERY_BEAT_WORKER_QUEUE: registry_worker_queue
+      REGISTRY_CELERY_BEAT_ACTIVITY_OUTBOX_FREQUENCY: "10"
+
+  db-seed:
+    image: openg2p/openg2p-crop-sown-registry-db-seed:${CSR_TAG:-local}
+    depends_on:
+      staff-api:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      PGHOST: host.docker.internal
+      PGPORT: "15432"
+      PGDATABASE: csr_dev
+      PGUSER: csr_dev_user
+      PGPASSWORD: ${CSR_DB_PASSWORD}
+      LOAD_TEMPLATES: "true"
+      LOAD_ATTRIBUTES: "true"
+      MDS_BASE_URL: http://host.docker.internal:18090
+      ATTRIBUTE_DOMAINS: agriculture
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_SECURE: "false"
+    restart: "no"

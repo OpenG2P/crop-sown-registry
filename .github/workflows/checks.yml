@@ -1,0 +1,23 @@
+name: Checks
+
+# Docker-free checks before the build:
+#   * the generated seed SQL matches scripts/activity_definitions.py
+#   * the openg2p-registry pin is in lockstep across Dockerfiles and the chart
+on:
+  push:
+    branches: ["**", "!dependabot/**"]
+  pull_request:
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet pytest
+      - name: Seed SQL is up to date
+        run: python scripts/build_seed_sql.py --check
+      - name: openg2p-registry pin lockstep
+        run: python -m pytest test/test_rp_pin_lockstep.py -q

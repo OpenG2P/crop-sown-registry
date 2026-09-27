@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openg2p-registry-crop-sown-extension"
+description = "OpenG2P Crop Sown Registry: an activity register of what farmers plan, sow, observe and harvest, built on the OpenG2P registry platform."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MPL-2.0" }
+authors = [{ name = "OpenG2P", email = "info@openg2p.org" }]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
+  "Operating System :: OS Independent",
+]
+# openg2p-registry-core (with activity-register support) is provided by the
+# registry-platform base image this extension is installed into.
+dependencies = ["openg2p-fastapi-common >=1.1.2"]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://openg2p.org"
+Repository = "https://github.com/OpenG2P/crop-sown-registry"
+
+[tool.hatch.version]
+path = "src/openg2p_registry_crop_sown_extension/__init__.py"
+
+# Seed SQL, activity metadata and templates are copied into the db-seed image;
+# include them in the wheel too so the package is self-describing.
+[tool.hatch.build.targets.wheel]
+packages = ["src/openg2p_registry_crop_sown_extension"]

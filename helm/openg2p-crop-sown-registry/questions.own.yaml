@@ -1,0 +1,7 @@
+questions:
+  - variable: registry.celeryWorker.envVars.REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_ENABLED
+    label: Pull submissions from ODK Central
+    description: Pull crop-sowing form submissions from ODK Central into the activity register.
+    type: boolean
+    default: false
+    group: "Crop Sown Registry"
