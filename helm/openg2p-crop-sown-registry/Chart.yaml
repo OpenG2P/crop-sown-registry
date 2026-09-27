@@ -28,17 +28,13 @@ maintainers:
   - name: OpenG2P
     email: info@openg2p.org
 
-# 0.0.0-activity is a deliberate placeholder: no published openg2p-registry
-# includes activity registers yet (registry-platform feature/activity-register).
-# Once one is published, pin it here and in docker/*/Dockerfile together with
+# The first openg2p-registry build with activity registers is 0.0.0-develop.438.
+# Keep this in lockstep with RP_VERSION in docker/*/Dockerfile:
 #     ./scripts/bump-rp-version.sh <version>
-# Until then CI fails fast on the missing base image instead of shipping images
-# built on a platform without activity registers. Local builds pass
-# --build-arg RP_VERSION=<locally built tag>.
 dependencies:
   - name: openg2p-registry
     alias: registry
-    version: 0.0.0-activity
+    version: 0.0.0-develop.438
     repository: https://openg2p.github.io/openg2p-helm
 
 annotations:

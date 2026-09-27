@@ -23,9 +23,8 @@ and [Activity register](https://github.com/OpenG2P/agri-stack/blob/develop/docs/
 | `local/` | Hybrid run: these containers on a laptop against a cluster's commons |
 
 The registry-platform version is pinned in `docker/*/Dockerfile` (`RP_VERSION`)
-and `helm/.../Chart.yaml`, kept in lockstep by `scripts/bump-rp-version.sh`. It
-is a placeholder (`0.0.0-activity`) until a registry-platform build with
-activity registers is published.
+and `helm/.../Chart.yaml`, kept in lockstep by `scripts/bump-rp-version.sh` (runs from any directory).
+Activity registers need `0.0.0-develop.438` or later.
 
 ## Tests
 

@@ -13,8 +13,12 @@
 #   the Helm index AND the container registry. An explicit version is likewise
 #   verified to exist in both before anything is written.
 #
-# Requires: bash, curl, python3, helm. Run from the repo root.
+# Requires: bash, curl, python3, helm. Runs from any directory (e.g. from
+# scripts/ as ./bump-rp-version.sh); paths resolve from the repo root.
 set -euo pipefail
+
+# Work from the repo root, whatever the caller's directory.
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 # ── repo-specific: the chart dir this variant ships ───────────────────────────
 # The chart dir is the only per-repo value; everything else is derived.
@@ -40,12 +44,12 @@ usage() {
 Bump the pinned openg2p-registry version (Dockerfiles' ARG RP_VERSION + the Helm
 chart dependency) atomically, so images and chart never drift.
 
-Usage:
-  ./scripts/bump-rp-version.sh                 Bump to the latest SAFE version.
-  ./scripts/bump-rp-version.sh <version>       Bump to a specific version.
-  ./scripts/bump-rp-version.sh -n              Show the latest SAFE version;
-  ./scripts/bump-rp-version.sh -n <version>    check a version — write NOTHING.
-  ./scripts/bump-rp-version.sh -h              This help.
+Usage (from scripts/, or give the path from elsewhere):
+  ./bump-rp-version.sh                 Bump to the latest SAFE version.
+  ./bump-rp-version.sh <version>       Bump to a specific version.
+  ./bump-rp-version.sh -n              Show the latest SAFE version;
+  ./bump-rp-version.sh -n <version>    check a version — write NOTHING.
+  ./bump-rp-version.sh -h              This help.
 
 Options:
   -n, --check, --dry-run   Resolve/validate and print, but do not modify any file.
@@ -57,9 +61,9 @@ chart has not published yet is skipped). A specific <version> is accepted only
 if it exists in both.
 
 Examples:
-  ./scripts/bump-rp-version.sh -n              # what would 'latest' pick?
-  ./scripts/bump-rp-version.sh                 # take it
-  ./scripts/bump-rp-version.sh 0.0.0-develop.296
+  ./bump-rp-version.sh -n              # what would 'latest' pick?
+  ./bump-rp-version.sh                 # take it
+  ./bump-rp-version.sh 0.0.0-develop.296
 EOF
 }
 
@@ -78,7 +82,7 @@ done
 command -v curl    >/dev/null || die "curl is required"
 command -v python3 >/dev/null || die "python3 is required"
 command -v helm    >/dev/null || die "helm is required"
-[ -d "$CHART_DIR" ] || die "run from the repo root ($CHART_DIR not found)"
+[ -d "$CHART_DIR" ] || die "$CHART_DIR not found under $(pwd)"
 
 # ── discover published versions ───────────────────────────────────────────────
 chart_versions() {
@@ -154,8 +158,7 @@ if [ "$CHECK_ONLY" = "true" ]; then
 fi
 
 if [ "$CUR_CHART" = "$VERSION" ] && [ "$CUR_DOCKER" = "$VERSION" ]; then
-  note "already at $VERSION — nothing to do."
-  exit 0
+  note "pins already at $VERSION — refreshing the dependency lock only."
 fi
 
 # ── rewrite (atomic: same value to every Dockerfile + the chart dep) ──────────
@@ -182,9 +185,23 @@ PY
 
 # refresh the dependency lock so it matches the new pin
 echo "Updating the chart dependency lock…"
-helm repo add openg2p-charts "${HELM_INDEX%/index.yaml}" >/dev/null 2>&1 || true
-helm repo update openg2p-charts >/dev/null 2>&1 || true
-helm dependency update "$CHART_DIR" >/dev/null 2>&1 || die "helm dependency update failed for $VERSION"
+# Helm resolves the dependency through whichever configured repo has this URL,
+# using that repo's cached index. Refresh every such repo (a stale one would not
+# know the new version); add one only if none is configured.
+REPO_URL="${HELM_INDEX%/index.yaml}"
+REPOS=$(helm repo list -o json 2>/dev/null | python3 -c "
+import json,sys
+url=sys.argv[1].rstrip('/')
+try: repos=json.load(sys.stdin)
+except Exception: repos=[]
+print(' '.join(r['name'] for r in repos if r.get('url','').rstrip('/')==url))" "$REPO_URL")
+if [ -z "$REPOS" ]; then
+  helm repo add openg2p-rp "$REPO_URL" >/dev/null || die "could not add Helm repo $REPO_URL"
+  REPOS="openg2p-rp"
+fi
+# shellcheck disable=SC2086
+helm repo update $REPOS >/dev/null || die "helm repo update failed for: $REPOS"
+helm dependency update "$CHART_DIR" || die "helm dependency update failed for $VERSION"
 
 # ── verify + report ───────────────────────────────────────────────────────────
 NEW_CHART=$(python3 - "$CHART_DIR/Chart.yaml" <<'PY'
@@ -201,4 +218,4 @@ echo ""
 echo "Bumped openg2p-registry pin: ${CUR_CHART} -> ${VERSION}"
 echo "  Dockerfiles + chart dependency now aligned at ${VERSION}."
 echo "  Review, then commit:"
-echo "    git add docker helm/${CHART_DIR#helm/}/Chart.yaml && git commit"
+echo "    git add docker $CHART_DIR/Chart.yaml $CHART_DIR/Chart.lock $CHART_DIR/charts && git commit"
