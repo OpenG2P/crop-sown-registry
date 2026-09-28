@@ -73,8 +73,11 @@ registry:
   idgenerator:
     enabled: false
 
-  # The platform sanity suite exercises record registers (DCI search on a
-  # register record, change requests). Activity-register checks live in this
-  # repo's test/ and run against a deployed instance with scripts/e2e_smoke.py.
+  # The platform's sanity suite, from its own image: the smoke tier (partner API
+  # live, DCI search route served) runs on every install/upgrade and needs
+  # nothing else. Its e2e tier seeds and searches a record-register record, which
+  # this registry does not have, so it stays off. Activity-register checks run
+  # against a deployed instance with scripts/e2e_smoke.py.
   sanity:
-    enabled: false
+    enabled: true
+    runE2e: false
