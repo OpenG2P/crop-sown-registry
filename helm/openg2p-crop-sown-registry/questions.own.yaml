@@ -1,7 +1,30 @@
-questions:
-  - variable: registry.celeryWorker.envVars.REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_ENABLED
-    label: Pull submissions from ODK Central
-    description: Pull crop-sowing form submissions from ODK Central into the activity register.
-    type: boolean
-    default: false
-    group: "Crop Sown Registry"
+# Questions for keys this chart sets that the registry chart's form does not ask.
+# Appended verbatim to the generated questions.yaml at package time by
+# openg2p/packaging ci/chart/inherit-questions.sh, AFTER the questions inherited
+# from openg2p-registry (images, hostnames, DB seed, ...) — so this file is a bare
+# list of questions, NOT a `questions:` document: a second top-level `questions:`
+# key would replace every inherited question. Variables here address the ROOT
+# chart and are NOT path-prefixed.
+
+# Env values must reach Kubernetes as strings, hence an enum of "true"/"false"
+# rather than a boolean.
+- variable: registry.celeryWorker.envVars.REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_ENABLED
+  label: "Pull submissions from ODK Central"
+  description: >-
+    Pull crop-sowing form submissions from ODK Central into the activity
+    register. Also activate the form in the register's Settings (ODK project and
+    form ID) and create the ODK credentials Secret.
+  type: enum
+  options:
+    - "false"
+    - "true"
+  default: "false"
+  group: "Crop Sown Registry"
+
+- variable: registry.celeryWorker.envVars.REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_BASE_URL
+  label: "ODK Central URL"
+  description: "ODK Central backend the worker pulls submissions from."
+  type: string
+  default: "http://commons-services-odk-central-backend"
+  group: "Crop Sown Registry"
+  show_if: "registry.celeryWorker.envVars.REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_ENABLED=true"
