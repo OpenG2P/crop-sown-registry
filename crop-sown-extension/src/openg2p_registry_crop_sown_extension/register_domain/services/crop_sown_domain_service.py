@@ -1,9 +1,13 @@
-"""Crop Sown domain rules: the crop-season context, derived values, checks and the projection."""
+"""Crop Sown domain rules: the crop-season context, derived values, checks, the projection
+and the farmer's season summary."""
 
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any, Optional
 
-from openg2p_registry_core.services import G2PActivityDomainService
+from openg2p_registry_core.helpers.ethiopian_calendar import ethiopian_to_gregorian
+from openg2p_registry_core.services import ActivityAggregateResult, G2PActivityDomainService
+from sqlalchemy import select
 
 # Lifecycle stages in order. Infestation and damage reports do not move a crop
 # along; observations after sowing mean it is growing.
@@ -12,6 +16,8 @@ STAGE_NAME = {"GROWTH_OBSERVED": "GROWING"}
 # INFESTATION_SEVERITY codes (Master Data, ETH pack agriculture domain).
 SEVERITY_ORDER = {"SEV_LOW": 1, "SEV_MEDIUM": 2, "SEV_HIGH": 3}
 CONTEXT_FIELDS = ("plot_id", "crop_year", "season", "crop")
+
+FARMER_SEASON_SUMMARY = "FARMER_SEASON_SUMMARY"
 
 
 def _num(value) -> Optional[float]:
@@ -83,6 +89,74 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
             if disposed > quantity - loss + 1e-6:
                 warnings.append("Stored, sold, consumed and seed quantities add up to more than was harvested")
         return warnings
+
+    # ------------------------------------------------------ season summary
+
+    async def aggregate(self, session, register, activity, event_type: str) -> list[ActivityAggregateResult]:
+        """The farmer's summary for the crop year and season, across all their plots and crops.
+
+        Recomputed from the projections (current state per crop season), so a
+        correction or a void is reflected, and processing an event twice is harmless.
+        """
+        farmer_id, crop_year, season = activity.farmer_id, activity.crop_year, activity.season
+        projection = register.projection_model
+        if not farmer_id or crop_year is None or not season or projection is None:
+            return []
+        rows = list(
+            (
+                await session.execute(
+                    select(projection).where(
+                        projection.farmer_id == farmer_id,
+                        projection.crop_year == crop_year,
+                        projection.season == season,
+                    )
+                )
+            ).scalars()
+        )
+        return [self._season_summary(activity, farmer_id, crop_year, season, rows)]
+
+    @staticmethod
+    def _season_summary(activity, farmer_id: str, crop_year: int, season: str, rows: list) -> ActivityAggregateResult:
+        def total(field: str) -> float:
+            return round(sum(float(getattr(row, field) or 0) for row in rows), 4)
+
+        by_crop: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            crop = by_crop.setdefault(row.crop, {"plots": 0, "area_sown_ha": 0.0, "area_harvested_ha": 0.0,
+                                                 "quantity_harvested_qt": 0.0})
+            crop["plots"] += 1
+            crop["area_sown_ha"] += float(row.area_sown_ha or 0)
+            crop["area_harvested_ha"] += float(row.area_harvested_ha or 0)
+            crop["quantity_harvested_qt"] += float(row.quantity_harvested_qt or 0)
+        for crop in by_crop.values():
+            crop["yield_qt_per_ha"] = (
+                round(crop["quantity_harvested_qt"] / crop["area_harvested_ha"], 3) if crop["area_harvested_ha"] else None
+            )
+        harvested_area, harvested = total("area_harvested_ha"), total("quantity_harvested_qt")
+        # The crop year in the Ethiopian calendar: Meskerem 1 to the day before the next.
+        start = ethiopian_to_gregorian(int(crop_year), 1, 1)
+        end = ethiopian_to_gregorian(int(crop_year) + 1, 1, 1) - timedelta(days=1)
+        return ActivityAggregateResult(
+            subject_type="FARMER_ID",
+            subject_id=farmer_id,
+            aggregate_type=FARMER_SEASON_SUMMARY,
+            period_key=f"{crop_year}|{season}",
+            period_start=start,
+            period_end=end,
+            aggregate_value={
+                "crop_seasons": len(rows),
+                "plots": len({row.plot_id for row in rows}),
+                "planned_area_ha": total("planned_area_ha"),
+                "area_sown_ha": total("area_sown_ha"),
+                "area_harvested_ha": harvested_area,
+                "quantity_harvested_qt": harvested,
+                "yield_qt_per_ha": round(harvested / harvested_area, 3) if harvested_area else None,
+                "infestations": sum(int(row.infestation_count or 0) for row in rows),
+                "damage_reports": sum(int(row.damage_count or 0) for row in rows),
+                "by_crop": by_crop,
+            },
+            custom_dimensions={"crop_year": int(crop_year), "season": season},
+        )
 
     # ---------------------------------------------------------- projection
 

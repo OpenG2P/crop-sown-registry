@@ -25,7 +25,14 @@ and [Activity register](https://github.com/OpenG2P/agri-stack/blob/develop/docs/
 The registry-platform version is pinned in `docker/*/Dockerfile` (`RP_VERSION`)
 and `helm/.../Chart.yaml`, kept in lockstep by `scripts/bump-rp-version.sh` (runs from any directory).
 Activity registers need `0.0.0-develop.438` or later; reading code lists from
-Master Data needs `0.0.0-develop.439` or later.
+Master Data needs `0.0.0-develop.439` or later. The season summary needs the
+registry-platform release after `0.0.0-develop.439` that adds activity aggregates.
+
+## Season summary
+
+The domain service's `aggregate` hook keeps `FARMER_SEASON_SUMMARY` per farmer,
+crop year and season, recomputed from the crop-season projections by the outbox
+worker, with history (`/activity/search_aggregates`, `/activity/get_aggregate_history`).
 
 ## Code lists come from Master Data
 

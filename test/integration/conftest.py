@@ -27,6 +27,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 sys.modules["openg2p_registry_extensions"] = importlib.import_module("openg2p_registry_crop_sown_extension")
+sys.modules["openg2p_registry_extensions.register_domain.models"] = importlib.import_module(
+    "openg2p_registry_crop_sown_extension.register_domain.models"
+)
+sys.modules["openg2p_registry_extensions.register_domain.services"] = importlib.import_module(
+    "openg2p_registry_crop_sown_extension.register_domain.services"
+)
 
 from openg2p_fastapi_common.context import dbengine  # noqa: E402
 
@@ -62,12 +68,15 @@ async def _prepare():
         DataModel, G2PActivityContext, G2PActivityIdempotencyKey, G2PActivityIndicator, G2PActivityOdkFailure,
         G2PActivityOdkForm, G2PActivityOutbox, G2PActivityPeriodLock, G2PActivityTemporaryReference,
         G2PActivityType, G2PRegisterDefinition, G2PRegistryDocument, OutgoingTemplate,
+        G2PActivityTypeSchema, G2PActivityEnrichment, G2PActivityAggregate, G2PActivityAggregateHistory,
     )
 
     for model in (G2PRegisterDefinition, G2PActivityType, G2PActivityContext, G2PActivityPeriodLock,
                   G2PActivityIdempotencyKey, G2PActivityOutbox, G2PActivityTemporaryReference, G2PActivityIndicator,
-                  G2PActivityOdkForm, G2PActivityOdkFailure, DataModel, G2PRegistryDocument, OutgoingTemplate):
+                  G2PActivityOdkForm, G2PActivityOdkFailure, DataModel, G2PRegistryDocument, OutgoingTemplate,
+                  G2PActivityTypeSchema, G2PActivityEnrichment, G2PActivityAggregate, G2PActivityAggregateHistory):
         await model.create_migrate()
+    await core_app.migrate_activity_core_tables()
     await core_app.migrate_activity_tables()
 
     async with engine.begin() as conn:
@@ -107,7 +116,8 @@ async def clean(database):
     async with database.begin() as conn:
         for table in ("g2p_activity_crop_sown", "g2p_activity_projection_crop_sown", "g2p_activity_contexts",
                       "g2p_activity_idempotency_keys", "g2p_activity_outbox", "g2p_activity_period_locks",
-                      "g2p_activity_temporary_references"):
+                      "g2p_activity_temporary_references", "g2p_activity_enrichments", "g2p_activity_aggregates",
+                      "g2p_activity_aggregate_history"):
             await conn.execute(text(f"TRUNCATE {table}"))
     yield
 
