@@ -70,6 +70,21 @@ python3 scripts/build_seed_sql.py --check
 pytest test/test_code_lists_in_pack.py
 ```
 
+## Uninstall
+
+`scripts/uninstall-registry.sh` removes a release and what `helm uninstall`
+leaves behind: hook Jobs, labelled Secrets/ConfigMaps, the registry's database
+and role in commons-postgresql, its IAM rows (`<release>-staff-portal`) and its
+own PVCs/PVs. Run it with `--dry-run` first:
+
+```bash
+./scripts/uninstall-registry.sh --namespace trial --dry-run
+./scripts/uninstall-registry.sh --namespace trial            # asks you to type the release name
+```
+
+It leaves shared services alone: the Keycloak client, the templates in the shared
+MinIO bucket, and Master Data.
+
 ## Hybrid run against a cluster
 
 See [local/README.md](local/README.md).
