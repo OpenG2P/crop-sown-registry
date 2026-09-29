@@ -10,7 +10,7 @@
 # There are no sample records: activities are created through the APIs.
 #
 # Build context = repo root.
-ARG RP_VERSION=0.0.0-develop.441
+ARG RP_VERSION=0.0.0-develop.444
 FROM openg2p/openg2p-registry-db-seed:${RP_VERSION}
 
 RUN rm -rf /seed/meta_data/* /seed/awe_meta_data/* /seed/templates/* /seed/seed-data/*
