@@ -38,6 +38,7 @@
   "location": {
     "latitude": {{ a.get("latitude") | tojson }},
     "longitude": {{ a.get("longitude") | tojson }},
-    "geo_lowest_level_value_id": {{ a.get("geo_lowest_level_value_id") | tojson }}
+    "geo_lowest_level_value_id": {{ a.get("geo_lowest_level_value_id") | tojson }},
+    "levels": {{ a.get("geo_dimensions") | tojson }}
   }
 }

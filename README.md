@@ -34,6 +34,15 @@ The domain service's `aggregate` hook keeps `FARMER_SEASON_SUMMARY` per farmer,
 crop year and season, recomputed from the crop-season projections by the outbox
 worker, with history (`/activity/search_aggregates`, `/activity/get_aggregate_history`).
 
+## Geography
+
+Every activity records where it happened: the plot's **woreda** (required when a
+crop season is planned or sown; later activities take it from their crop season),
+stored with its zone, region and country as named Master Data levels
+(`geo_dimensions`). Indicators group by `geo:region` / `geo:zone` / `geo:woreda`,
+and `meta_data/reporting-views/` defines views for Superset/Insights:
+`csr_rpt_crop_season` and `csr_rpt_crop_performance_{region,zone,woreda}`.
+
 ## Code lists come from Master Data
 
 This registry keeps no code lists. Every coded field — crop, season, seed type,

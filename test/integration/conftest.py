@@ -37,12 +37,13 @@ sys.modules["openg2p_registry_extensions.register_domain.services"] = importlib.
 from openg2p_fastapi_common.context import dbengine  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from master_data_pack import load_lists, pack_dir  # noqa: E402
+from master_data_pack import load_geography, load_lists, pack_dir  # noqa: E402
 
 DB_URL = os.environ.get("CSR_TEST_DB_URL", "postgresql+asyncpg://postgres:postgres@localhost:55432/csr_test")
 META = Path(__file__).resolve().parents[2] / "crop-sown-extension/src/openg2p_registry_crop_sown_extension/meta_data"
 
-SEED_DIRS = ["register-metadata", "activity-metadata", "data-models", "registry-outbound-messages-templates"]
+SEED_DIRS = ["register-metadata", "activity-metadata", "data-models", "registry-outbound-messages-templates",
+             "reporting-views"]
 
 
 async def _prepare():
@@ -95,6 +96,20 @@ async def _prepare():
                                    {"id": v["value_id"], "a": doc["attribute_id"], "c": v.get("value_code"),
                                     "d": v.get("value_display"), "p": v.get("parent_value_id"),
                                     "o": v.get("sort_order")})
+        # Master Data's geography tables, with the ETH pack's 1271 units.
+        await conn.execute(text("CREATE TABLE g2p_geo_levels (level_id varchar PRIMARY KEY, "
+                                "level_mnemonic varchar, parent_level_id varchar)"))
+        await conn.execute(text("CREATE TABLE g2p_geo_level_values (level_value_id varchar PRIMARY KEY, "
+                                "level_id varchar, level_value_mnemonic varchar, parent_level_value_id varchar)"))
+        levels, units = load_geography(pack)
+        await conn.execute(text("INSERT INTO g2p_geo_levels VALUES (:level_id, :level_mnemonic, :parent_level_id)"),
+                           levels)
+        await conn.execute(
+            text("INSERT INTO g2p_geo_level_values VALUES "
+                 "(:level_value_id, :level_id, :level_value_mnemonic, :parent_level_value_id)"),
+            [{k: u[k] for k in ("level_value_id", "level_id", "level_value_mnemonic", "parent_level_value_id")}
+             for u in units],
+        )
         raw = (await conn.get_raw_connection()).driver_connection  # asyncpg: multi-statement like psql
         for directory in SEED_DIRS:
             for path in sorted((META / directory).glob("*.sql")):

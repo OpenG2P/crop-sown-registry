@@ -24,6 +24,27 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 REG = "CropSown"
+# The plot's woreda (Sheno town, North Shewa (OR), Oromia) in the ETH pack Master Data holds.
+WOREDA = "ET040611"
+
+
+def dci_search(signature, now, record_type: str, farmer_id: str) -> dict:
+    """A DCI search on the CropSown register by farmer ID. The record type picks activities
+    (spdci-extensions-agri:CropActivity) or the farmer's aggregates (…:ActivityAggregate)."""
+    return {
+        "signature": signature or "",
+        "header": {"version": "1.0.0", "message_id": str(uuid.uuid4()), "message_ts": now.isoformat(),
+                   "action": "search", "sender_id": "csr-smoke-test", "receiver_id": "crop-sown-registry",
+                   "total_count": 1},
+        "message": {"transaction_id": str(uuid.uuid4()), "search_request": [{
+            "reference_id": "1", "timestamp": now.isoformat(),
+            "search_criteria": {"reg_type": REG, "reg_record_type": record_type,
+                                "query_type": "idtype-value",
+                                "query": {"type": "idtype-value", "value": {"id_type": "farmer_id",
+                                                                            "id_value": farmer_id}},
+                                "pagination": {"page_size": 20, "page_number": 1}},
+        }]},
+    }
 
 
 def post(url: str, body: dict) -> dict:
@@ -60,7 +81,8 @@ def main() -> int:
             "occurred_at": (now - timedelta(days=days_ago)).isoformat(),
             "idempotency_key": f"smoke:{run}:{kind}",
             "payload": {"farmer_id": f"FR-SMOKE-{run}", "plot_id": plot, "crop_year": 2019,
-                        "season": "SEASON_MEHER", "crop": "CROP_TEFF", **payload},
+                        "season": "SEASON_MEHER", "crop": "CROP_TEFF",
+                        "geo_lowest_level_value_id": WOREDA, **payload},
         }
 
     # Codes are Master Data's (ETH pack, agriculture domain).
@@ -99,25 +121,45 @@ def main() -> int:
     check(out["results"][0]["outcome"] == "FAILED" and out["results"][0]["error_code"] == "ACT-ERR-009",
           "harvest before sowing is blocked")
 
-    search = post(f"{base}/dci/registry/sync/search", {
-        "signature": args.signature or "",
-        "header": {"version": "1.0.0", "message_id": str(uuid.uuid4()), "message_ts": now.isoformat(),
-                   "action": "search", "sender_id": "csr-smoke-test", "receiver_id": "crop-sown-registry",
-                   "total_count": 1},
-        "message": {"transaction_id": str(uuid.uuid4()), "search_request": [{
-            "reference_id": "1", "timestamp": now.isoformat(),
-            "search_criteria": {"reg_type": REG, "reg_record_type": "spdci-extensions-agri:CropActivity",
-                                "query_type": "idtype-value",
-                                "query": {"type": "idtype-value", "value": {"id_type": "farmer_id",
-                                                                            "id_value": f"FR-SMOKE-{run}"}},
-                                "pagination": {"page_size": 20, "page_number": 1}},
-        }]},
-    })
+    search = post(f"{base}/dci/registry/sync/search", dci_search(
+        args.signature, now, "spdci-extensions-agri:CropActivity", f"FR-SMOKE-{run}"))
     items = (search.get("message") or {}).get("search_response") or []
     records = ((items[0].get("data") or {}).get("reg_records") or []) if items else []
     check(len(records) == 6, f"DCI search returns the season's six current activities ({len(records)})")
     if records:
         check(records[0].get("crop_season", {}).get("plot_id") == plot, "DCI record renders the crop season")
+        levels = (records[0].get("location") or {}).get("levels") or {}
+        check((levels.get("woreda") or {}).get("code") == WOREDA and bool(levels.get("region")),
+              f"DCI record carries the location by level ({levels.get('region')})")
+
+    # The farmer's season summary is computed asynchronously by the outbox worker.
+    summary = []
+    for _ in range(12):
+        found = post(f"{base}/dci/registry/sync/search", dci_search(
+            args.signature, now, "spdci-extensions-agri:ActivityAggregate", f"FR-SMOKE-{run}"))
+        items = (found.get("message") or {}).get("search_response") or []
+        summary = ((items[0].get("data") or {}).get("reg_records") or []) if items else []
+        if summary:
+            break
+        time.sleep(5)
+    check(len(summary) == 1
+          and summary[0].get("crop_season", {}).get("aggregate_type") == "FARMER_SEASON_SUMMARY",
+          "DCI returns the farmer's season summary (aggregate)")
+    if summary:
+        check(summary[0].get("measures", {}).get("quantity_harvested_qt") == 15.3,
+              "season summary totals the harvest (15.3 qt)")
+
+    # The crop season's current state — what a subsidy or loan decision reads.
+    found = post(f"{base}/dci/registry/sync/search", dci_search(
+        args.signature, now, "spdci-extensions-agri:CropSeason", f"FR-SMOKE-{run}"))
+    items = (found.get("message") or {}).get("search_response") or []
+    seasons = ((items[0].get("data") or {}).get("reg_records") or []) if items else []
+    check(len(seasons) == 1 and seasons[0].get("crop_season", {}).get("stage") == "HARVESTED",
+          f"DCI returns the crop season's current state ({len(seasons)} season(s))")
+    if seasons:
+        measures = seasons[0].get("measures", {})
+        check(measures.get("area_sown_ha") == 0.9 and measures.get("yield_qt_per_ha") == 17.0,
+              "crop season state carries area sown and yield")
 
     if args.db_url:
         import psycopg

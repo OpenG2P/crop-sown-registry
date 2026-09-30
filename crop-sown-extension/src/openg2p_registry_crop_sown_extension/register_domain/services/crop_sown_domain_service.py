@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from openg2p_registry_core.helpers.ethiopian_calendar import ethiopian_to_gregorian
-from openg2p_registry_core.services import ActivityAggregateResult, G2PActivityDomainService
+from openg2p_registry_core.services import ActivityAggregateResult, G2PActivityDomainService, common_dimensions
 from sqlalchemy import select
 
 # Lifecycle stages in order. Infestation and damage reports do not move a crop
@@ -18,6 +18,29 @@ SEVERITY_ORDER = {"SEV_LOW": 1, "SEV_MEDIUM": 2, "SEV_HIGH": 3}
 CONTEXT_FIELDS = ("plot_id", "crop_year", "season", "crop")
 
 FARMER_SEASON_SUMMARY = "FARMER_SEASON_SUMMARY"
+
+# Each season's window within the Ethiopian crop year, as Ethiopian months
+# (1 Meskerem … 13 Pagume), following the CSA Agricultural Sample Survey: Meher
+# crops are harvested September–February, Belg crops March–August; irrigated
+# production runs through the dry season, November–May. A season without a
+# window here is summarised over the whole crop year.
+SEASON_WINDOWS = {
+    "SEASON_MEHER": (1, 6),        # Meskerem – Yekatit
+    "SEASON_BELG": (7, 13),        # Megabit – Pagume
+    "SEASON_IRRIGATION": (3, 9),   # Hidar – Ginbot
+}
+
+
+def season_period(crop_year: int, season: str):
+    """First and last day of a season in a crop year (Gregorian)."""
+    first_month, last_month = SEASON_WINDOWS.get(season, (1, 13))
+    start = ethiopian_to_gregorian(crop_year, first_month, 1)
+    end = (
+        ethiopian_to_gregorian(crop_year, last_month + 1, 1)
+        if last_month < 13
+        else ethiopian_to_gregorian(crop_year + 1, 1, 1)
+    ) - timedelta(days=1)
+    return start, end
 
 
 def _num(value) -> Optional[float]:
@@ -133,9 +156,7 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
                 round(crop["quantity_harvested_qt"] / crop["area_harvested_ha"], 3) if crop["area_harvested_ha"] else None
             )
         harvested_area, harvested = total("area_harvested_ha"), total("quantity_harvested_qt")
-        # The crop year in the Ethiopian calendar: Meskerem 1 to the day before the next.
-        start = ethiopian_to_gregorian(int(crop_year), 1, 1)
-        end = ethiopian_to_gregorian(int(crop_year) + 1, 1, 1) - timedelta(days=1)
+        start, end = season_period(int(crop_year), season)
         return ActivityAggregateResult(
             subject_type="FARMER_ID",
             subject_id=farmer_id,
@@ -155,8 +176,64 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
                 "damage_reports": sum(int(row.damage_count or 0) for row in rows),
                 "by_crop": by_crop,
             },
+            # Where the farmer's crop seasons are: the levels all their plots share
+            # (e.g. one woreda, or only the zone when plots span woredas).
+            geo_dimensions=common_dimensions([getattr(row, "geo_dimensions", None) for row in rows]) or {},
             custom_dimensions={"crop_year": int(crop_year), "season": season},
         )
+
+    # ------------------------------------------------------------- sharing
+    #
+    # DCI records for a crop season's current state (reg_record_type
+    # spdci-extensions-agri:CropSeason) and for aggregates (...:ActivityAggregate),
+    # keyed by farmer ID. Top-level keys are this registry's consent scopes —
+    # farmer_reference, crop_season, measures, location — the same as for
+    # activities, so a partner's policy covers all three record types.
+
+    def dci_state_record(self, state: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "@type": "spdci-extensions-agri:CropSeason",
+            "farmer_reference": {"farmer_id": state.get("farmer_id"), "fayda_fan": state.get("fayda_fan")},
+            "crop_season": {
+                "crop_season_id": state.get("context_id"),
+                "plot_id": state.get("plot_id"),
+                "crop_year": state.get("crop_year"),
+                "season": state.get("season"),
+                "crop": state.get("crop"),
+                "variety": state.get("variety"),
+                "stage": state.get("stage"),
+                "status": state.get("context_status"),
+                "last_activity_type": state.get("last_activity_type"),
+                "last_occurred_at": state.get("last_occurred_at"),
+            },
+            "measures": {key: state.get(key) for key in (
+                "planned_area_ha", "planned_sowing_date", "expected_yield_qt_per_ha",
+                "area_sown_ha", "sowing_date", "seed_type", "sowing_verified",
+                "latest_growth_stage", "latest_crop_condition",
+                "infestation_count", "max_infestation_severity", "damage_count", "max_loss_percent",
+                "area_harvested_ha", "quantity_harvested_qt", "yield_qt_per_ha", "harvest_date",
+                "pending_verification_count",
+            )},
+            "location": state.get("geo_dimensions"),
+        }
+
+    def dci_aggregate_record(self, aggregate: dict[str, Any]) -> dict[str, Any]:
+        custom = aggregate.get("custom_dimensions") or {}
+        return {
+            "@type": "spdci-extensions-agri:ActivityAggregate",
+            "farmer_reference": {"farmer_id": aggregate.get("subject_id")},
+            "crop_season": {
+                "aggregate_type": aggregate.get("aggregate_type"),
+                "period_key": aggregate.get("period_key"),
+                "crop_year": custom.get("crop_year"),
+                "season": custom.get("season"),
+                "period_start": aggregate.get("period_start"),
+                "period_end": aggregate.get("period_end"),
+                "computed_at": aggregate.get("computed_at"),
+            },
+            "measures": aggregate.get("aggregate_value"),
+            "location": aggregate.get("geo_dimensions") or None,
+        }
 
     # ---------------------------------------------------------- projection
 

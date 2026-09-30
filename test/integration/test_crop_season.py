@@ -13,7 +13,8 @@ pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 REG = "CropSown"
 BASE = {"farmer_id": "FR-000000000123", "fayda_fan": "1234567890123456", "plot_id": "LND-7781",
-        "crop_year": 2019, "season": "SEASON_MEHER", "crop": "CROP_TEFF"}
+        "crop_year": 2019, "season": "SEASON_MEHER", "crop": "CROP_TEFF",
+        "geo_lowest_level_value_id": "ET040611"}  # Sheno town, North Shewa (OR), Oromia
 
 
 def act(activity_type, days_ago, **payload):

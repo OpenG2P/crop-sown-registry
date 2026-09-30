@@ -43,5 +43,10 @@ def load_lists(pack: Path) -> dict[str, dict]:
     return lists
 
 
+def load_geography(pack: Path) -> tuple[list[dict], list[dict]]:
+    """The pack's administrative levels and units (levels.json, values.json)."""
+    return json.loads((pack / "levels.json").read_text()), json.loads((pack / "values.json").read_text())
+
+
 def codes(doc: dict) -> set[str]:
     return {v["value_code"] for v in doc["values"]}

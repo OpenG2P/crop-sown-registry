@@ -29,7 +29,7 @@ _CONTEXT = {
     "da_id": {"type": "string", "title": "Development agent ID"},
     "latitude": {"type": "string", "title": "Latitude"},
     "longitude": {"type": "string", "title": "Longitude"},
-    "geo_lowest_level_value_id": {"type": "string", "title": "Kebele"},
+    "geo_lowest_level_value_id": {"type": "string", "title": "Woreda (where the plot is)"},
     "remarks": {"type": "string", "title": "Remarks", "maxLength": 2000},
 }
 _CONTEXT_REQUIRED = ["farmer_id", "plot_id", "crop_year", "season", "crop"]
@@ -74,7 +74,11 @@ _REFERENCES = {
                 "pattern": "^[A-Za-z0-9-]{3,64}$", "temporary_prefix": "TMP-", "lookup": False},
     "da_id": {"kind": "EXTERNAL", "system": "da-registry", "mode": "LENIENT",
               "pattern": "^[A-Za-z0-9-]{3,64}$", "lookup": False},
-    "geo_lowest_level_value_id": {"kind": "GEO", "mode": "LENIENT"},
+    # The plot's woreda: where the crop season happened. It is the activity's
+    # location (geo dimensions), so every figure can be rolled up by region,
+    # zone and woreda. Required when a crop season is planned or sown; later
+    # activities in the same crop season take it from there.
+    "geo_lowest_level_value_id": {"kind": "GEO", "mode": "STRICT", "level": "woreda", "location": True},
 }
 
 
@@ -91,7 +95,7 @@ ACTIVITY_TYPES = [
         "display_name": "Crop planned",
         "description": "The farmer's plan for this crop on this plot this season.",
         "display_order": 10,
-        "payload_schema": _schema(["area_ha"], {
+        "payload_schema": _schema(["area_ha", "geo_lowest_level_value_id"], {
             "variety": {"type": "string", "title": "Variety"},
             "area_ha": {**_AREA, "title": "Planned area (ha)"},
             "cropping_system": {"type": "string", "title": "Cropping system"},
@@ -135,7 +139,7 @@ ACTIVITY_TYPES = [
         "display_name": "Sown",
         "description": "The crop was sown. Verified by a supervisor.",
         "display_order": 30,
-        "payload_schema": _schema(["area_ha", "seed_type"], {
+        "payload_schema": _schema(["area_ha", "seed_type", "geo_lowest_level_value_id"], {
             "variety": {"type": "string", "title": "Variety"},
             "area_ha": {**_AREA, "title": "Area sown (ha)"},
             "cropping_system": {"type": "string", "title": "Cropping system"},
@@ -276,6 +280,21 @@ INDICATORS = [
     ("INFESTED_CROPS", "Crops with infestations", "crops",
      {"measure": {"fn": "count", "field": "context_id"}, "group_by": ["crop_year", "season", "crop"],
       "filters": {"max_infestation_severity": ["SEV_LOW", "SEV_MEDIUM", "SEV_HIGH"]}}, 60),
+    # By geography: "geo:<level>" groups on the crop season's location (named
+    # Master Data levels) and adds the level's name.
+    ("SOWN_AREA_BY_REGION", "Area sown by region and crop", "ha",
+     {"measure": {"fn": "sum", "field": "area_sown_ha"}, "group_by": ["crop_year", "season", "geo:region", "crop"]}, 70),
+    ("SOWN_AREA_BY_ZONE", "Area sown by zone and crop", "ha",
+     {"measure": {"fn": "sum", "field": "area_sown_ha"}, "group_by": ["crop_year", "season", "geo:zone", "crop"]}, 80),
+    ("SOWN_AREA_BY_WOREDA", "Area sown by woreda and crop", "ha",
+     {"measure": {"fn": "sum", "field": "area_sown_ha"}, "group_by": ["crop_year", "season", "geo:woreda", "crop"]}, 90),
+    ("HARVEST_BY_REGION", "Quantity harvested by region and crop", "qt",
+     {"measure": {"fn": "sum", "field": "quantity_harvested_qt"},
+      "group_by": ["crop_year", "season", "geo:region", "crop"]}, 100),
+    ("AVERAGE_YIELD_BY_REGION", "Average yield by region and crop", "qt/ha",
+     {"measure": {"fn": "avg", "field": "yield_qt_per_ha"}, "group_by": ["crop_year", "season", "geo:region", "crop"]}, 110),
+    ("FARMERS_REPORTING_BY_WOREDA", "Farmers reporting by woreda", "farmers",
+     {"measure": {"fn": "count_distinct", "field": "farmer_id"}, "group_by": ["crop_year", "season", "geo:woreda"]}, 120),
 ]
 
 # ODK Central forms (inactive until an ODK project/form id is set for the environment).
@@ -309,6 +328,7 @@ ODK_FORMS = [
                 "longitude": {"path": "plot/location", "transform": "geopoint_lon"},
                 "photo_document_id": {"path": "sowing/photo", "transform": "attachment"},
                 "da_id": "meta_da/da_id",
+                "geo_lowest_level_value_id": "plot/woreda",
             },
         },
     },
