@@ -14,8 +14,8 @@ and [Activity register](https://github.com/OpenG2P/agri-stack/blob/develop/docs/
 | Path | What |
 |---|---|
 | `crop-sown-extension/` | The domain: activity and projection models, domain service (context key, derived yield, plausibility warnings, projection), seed SQL, DCI template |
-| `scripts/activity_definitions.py` | Activity types (JSON Schemas, rules naming Master Data code lists), indicators, ODK mapping — the one place to edit |
-| `scripts/build_seed_sql.py` | Generates the seed SQL from the definitions (`--check` in CI) |
+| `scripts/activity_definitions.py` | Activity types (JSON Schemas, rules naming Master Data code lists), indicators, ODK mapping — the one place to edit. **Developer tool, never run in a deployment** |
+| `scripts/build_seed_sql.py` | Generates the seed SQL in `crop-sown-extension/.../meta_data/` from the definitions (`--check` in CI). Only that committed SQL ships: db-seed runs it at install |
 | `docker/` | Thin images `FROM` the registry-platform images: staff-api, partner-api, celery, db-seed |
 | `helm/openg2p-crop-sown-registry/` | Values overlay over the `openg2p-registry` chart |
 | `test/integration/` | The extension through the platform's activity services on a real PostgreSQL |
