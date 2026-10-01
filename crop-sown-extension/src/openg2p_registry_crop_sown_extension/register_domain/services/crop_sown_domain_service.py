@@ -76,6 +76,10 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
         "search_placeholder": "Search farmer, plot, crop…",
         "context_search_placeholder": "Search by key (plot, season, crop…)",
     }
+    # A farmer's season summary is final once the season's window is locked
+    # (for all activity types) and its activities are processed. Plans are often
+    # made before the window, so lock from the planning start to keep it final.
+    final_on_period_lock = (FARMER_SEASON_SUMMARY,)
 
     # --------------------------------------------------------------- context
 
@@ -293,6 +297,9 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
                 "period_start": aggregate.get("period_start"),
                 "period_end": aggregate.get("period_end"),
                 "computed_at": aggregate.get("computed_at"),
+                # Final once the season is closed: the figure a subsidy or payment can rely on.
+                "is_final": bool(aggregate.get("is_final")),
+                "finalised_at": aggregate.get("finalised_at"),
             },
             "measures": aggregate.get("aggregate_value"),
             "location": aggregate.get("geo_dimensions") or None,
