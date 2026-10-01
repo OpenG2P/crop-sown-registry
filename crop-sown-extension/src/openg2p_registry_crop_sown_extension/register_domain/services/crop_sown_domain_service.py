@@ -80,6 +80,9 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
     # (for all activity types) and its activities are processed. Plans are often
     # made before the window, so lock from the planning start to keep it final.
     final_on_period_lock = (FARMER_SEASON_SUMMARY,)
+    # A partner's consent may name the farmer by Fayda FAN while the search is by
+    # farmer ID: allowed when this registry's own records link the two.
+    subject_id_fields = ("fayda_fan",)
 
     # --------------------------------------------------------------- context
 

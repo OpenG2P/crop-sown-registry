@@ -118,3 +118,29 @@ async def test_farmer_activities_filtered(service, clean):
     assert total == 6
     dates = [r.model_dump()["occurred_at"] for r in rows]
     assert dates == sorted(dates, reverse=True)
+
+
+async def test_consent_subject_must_be_the_farmer_searched(service, clean):
+    pytest.importorskip("openg2p_registry_partner_api")
+    from openg2p_registry_core.errors import G2PRegistryException
+
+    await _sow(service, "LAND-0042-1", "CROP_WHEAT", 1.0)
+    # The same farmer's FAN, recorded on one of their activities.
+    await service.append(act("PLANNED", 40, plot_id="LAND-0042-9", crop="CROP_TEFF", area_ha=1.0,
+                             fayda_fan="123456789012"), "da", "STAFF_PORTAL")
+    dci, _, _ = _dci()
+
+    await dci._require_subject_link(REG, FARMER, FARMER)                # consent by farmer ID
+    await dci._require_subject_link(REG, FARMER, "123456789012")        # consent by FAN, linked by the data
+    with pytest.raises(G2PRegistryException):
+        await dci._require_subject_link(REG, FARMER, "999999999999")    # another person's consent
+    with pytest.raises(G2PRegistryException):
+        await dci._require_subject_link(REG, None, "123456789012")      # no subject searched
+
+    from openg2p_registry_core.schemas import DeepSearchResultData
+
+    record = DeepSearchResultData(internal_record_id="r1", foundational_id="123456789012", functional_record_id="FR-0042")
+    dci._require_records_of_subject([record], "FR-0042")
+    dci._require_records_of_subject([record], "123456789012")
+    with pytest.raises(G2PRegistryException):
+        dci._require_records_of_subject([record], "FR-0099")
