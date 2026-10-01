@@ -64,6 +64,19 @@ def _num(value) -> Optional[float]:
 
 
 class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
+    # A crop season is one crop on one plot in one season, for one farmer: a
+    # correction can't move an activity to another one (void and record anew).
+    context_fields = ("farmer_id", *CONTEXT_FIELDS)
+    ui_hints = {
+        "summary_fields": ["farmer_id", "plot_id", "crop", "area_ha", "quantity_qt"],
+        "context_columns": ["farmer_id", "plot_id", "crop_year", "season", "crop", "stage",
+                            "area_sown_ha", "yield_qt_per_ha"],
+        # A batch is usually one season's entries by one development agent.
+        "batch_carry_fields": ["crop_year", "season", "da_id"],
+        "search_placeholder": "Search farmer, plot, crop…",
+        "context_search_placeholder": "Search by key (plot, season, crop…)",
+    }
+
     # --------------------------------------------------------------- context
 
     def build_context(self, activity_type, subject_type, subject_id, payload):

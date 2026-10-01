@@ -116,3 +116,16 @@ async def test_samples_load_once_from_master_data_people(service, clean, databas
     finally:
         async with database.begin() as conn:
             await conn.execute(text("DELETE FROM g2p_register_clusters WHERE functional_record_id = 'CL-ET0101-001'"))
+
+
+async def test_correction_cannot_change_the_crop_season(service, clean):
+    from openg2p_registry_core.errors import G2PRegistryException
+
+    sown, _ = await service.append(act("SOWN", 20, area_ha=1.0, seed_type="SEED_LOCAL"), "da-01", "STAFF_PORTAL")
+    with pytest.raises(G2PRegistryException) as info:
+        await service.supersede(REG, sown.activity_id, "wrong crop", "da-01", "STAFF_PORTAL",
+                                payload={**sown.payload, "crop": "CROP_WHEAT"})
+    assert "crop" in info.value.message
+    fixed = await service.supersede(REG, sown.activity_id, "area re-measured", "da-01", "STAFF_PORTAL",
+                                    payload={**sown.payload, "area_ha": 1.2})
+    assert fixed.payload["area_ha"] == 1.2 and fixed.context_id == sown.context_id
