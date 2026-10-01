@@ -15,7 +15,7 @@
 # load_sample_data.py; crop-season activities are created through the APIs.
 #
 # Build context = repo root.
-ARG RP_VERSION=0.0.0-develop.444
+ARG RP_VERSION=0.0.0-develop.448
 FROM openg2p/openg2p-registry-db-seed:${RP_VERSION}
 
 RUN rm -rf /seed/meta_data/* /seed/awe_meta_data/* /seed/templates/* /seed/seed-data/*
