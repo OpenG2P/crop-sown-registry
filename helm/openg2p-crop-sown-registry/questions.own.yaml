@@ -28,3 +28,23 @@
   default: "http://commons-services-odk-central-backend"
   group: "Crop Sown Registry"
   show_if: "registry.celeryWorker.envVars.REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_ENABLED=true"
+
+# Sample data is two switches: registry.dbSeed.loadSampleData (inherited "Load
+# Sample Data" question: the sample clusters) and this one (the sample crop
+# seasons, recorded by the Celery worker). Both are off by default. Crop seasons
+# are only recorded once the sample clusters exist, so this one alone loads
+# nothing.
+- variable: registry.celeryWorker.envVars.REGISTRY_CELERY_WORKERS_ACTIVITY_LOAD_SAMPLE_DATA
+  label: "Load sample crop seasons"
+  description: >-
+    Record sample crop seasons (plans, sowings, observations, harvests) for
+    Master Data's sample people, once, after install. Needs "Load Sample Data"
+    (the sample clusters) and Master Data's country samples. Leave off for
+    production.
+  type: enum
+  options:
+    - "false"
+    - "true"
+  default: "false"
+  group: "Crop Sown Registry"
+  show_if: "registry.dbSeed.loadSampleData=true"

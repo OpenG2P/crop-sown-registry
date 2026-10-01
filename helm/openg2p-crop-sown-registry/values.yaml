@@ -46,9 +46,9 @@ registry:
       REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_ENABLED: "false"
       REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_BASE_URL: "http://commons-services-odk-central-backend"
       # Sample crop seasons for Master Data's sample people, recorded once through
-      # the activity write path (after db-seed has loaded the types and the
-      # sample clusters). Set "false" for a production install.
-      REGISTRY_CELERY_WORKERS_ACTIVITY_LOAD_SAMPLE_DATA: "true"
+      # the activity write path. Off by default; for a demo, turn it on together
+      # with dbSeed.loadSampleData (the samples wait for the sample clusters).
+      REGISTRY_CELERY_WORKERS_ACTIVITY_LOAD_SAMPLE_DATA: "false"
   celeryBeat:
     image:
       repository: openg2p/openg2p-crop-sown-registry-celery
@@ -58,10 +58,11 @@ registry:
       repository: openg2p/openg2p-crop-sown-registry-db-seed
       tag: 0.0.0-develop
     loadGeoData: false
-    # Loads the two sample clusters (docker/db-seed/load_sample_data.py) as
-    # approved Cluster records. Sample crop-season activities are not loaded
-    # here: the platform's Celery sample task creates them through the APIs.
-    loadSampleData: true
+    # Off by default. When on, loads the two sample clusters
+    # (docker/db-seed/load_sample_data.py) as approved Cluster records. Sample
+    # crop-season activities are not loaded here: the platform's Celery sample
+    # task creates them through the APIs (celeryWorker.envVars above).
+    loadSampleData: false
     loadImages: false
     loadTemplates: true
     # Code lists are NOT seeded or copied into this registry: activity reference
