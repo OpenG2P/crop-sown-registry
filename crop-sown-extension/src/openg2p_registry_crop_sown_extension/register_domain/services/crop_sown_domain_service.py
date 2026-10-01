@@ -5,9 +5,23 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any, Optional
 
+import logging
+
+from openg2p_fastapi_common.context import dbengine
+from openg2p_registry_core.engine import get_engines
 from openg2p_registry_core.helpers.ethiopian_calendar import ethiopian_to_gregorian
-from openg2p_registry_core.services import ActivityAggregateResult, G2PActivityDomainService, common_dimensions
-from sqlalchemy import select
+from openg2p_registry_core.services import (
+    ActivityAggregateResult,
+    G2PActivityDomainService,
+    SampleStep,
+    common_dimensions,
+)
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from . import crop_sown_samples
+
+_logger = logging.getLogger("crop-sown-domain-service")
 
 # Lifecycle stages in order. Infestation and damage reports do not move a crop
 # along; observations after sowing mean it is growing.
@@ -69,7 +83,40 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
                 "farmer_id": payload.get("farmer_id"),
                 "fayda_fan": payload.get("fayda_fan"),
             },
+            # The crop was changed: this season replaces that one, which is closed and linked.
+            "replaces_context_id": payload.get("replaces_crop_season_id") or None,
         }
+
+    # ---------------------------------------------------------- sample data
+
+    async def sample_activities(self, register) -> list[SampleStep]:
+        """Sample crop seasons for Master Data's sample people (see ``crop_sown_samples``).
+
+        Empty until both sources are there: Master Data's sample people, and the
+        Cluster register's sample clusters (loaded by db-seed), so that enrolments
+        are not skipped by a load that ran first.
+        """
+        engine = get_engines().get("db_engine_master_data")
+        if engine is None:
+            return []
+        try:
+            async with async_sessionmaker(engine)() as session:
+                people = [dict(row._mapping) for row in await session.execute(text(
+                    "SELECT individual_id, age, national_id, geo_pcode FROM g2p_sample_individuals"
+                ))]
+        except Exception:
+            _logger.info("No sample people in Master Data; crop-season samples not loaded")
+            return []
+        try:
+            async with async_sessionmaker(dbengine.get())() as session:
+                clusters = {row[0] for row in await session.execute(text(
+                    "SELECT functional_record_id FROM g2p_register_clusters"
+                ))}
+        except Exception:
+            clusters = set()
+        if not people or not clusters:
+            return []
+        return crop_sown_samples.build_steps(people, clusters)
 
     # ------------------------------------------------------- derived values
 
@@ -205,10 +252,13 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
                 "status": state.get("context_status"),
                 "last_activity_type": state.get("last_activity_type"),
                 "last_occurred_at": state.get("last_occurred_at"),
+                # The crop was changed: the season this one replaced, or was replaced by.
+                "replaces_crop_season_id": state.get("replaces_context_id"),
+                "replaced_by_crop_season_id": state.get("replaced_by_context_id"),
             },
             "measures": {key: state.get(key) for key in (
                 "planned_area_ha", "planned_sowing_date", "expected_yield_qt_per_ha",
-                "area_sown_ha", "sowing_date", "seed_type", "sowing_verified",
+                "area_sown_ha", "sowing_date", "seed_type", "sowing_verified", "harvest_verified",
                 "latest_growth_stage", "latest_crop_condition",
                 "infestation_count", "max_infestation_severity", "damage_count", "max_loss_percent",
                 "area_harvested_ha", "quantity_harvested_qt", "yield_qt_per_ha", "harvest_date",
@@ -291,6 +341,7 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
                 row["area_harvested_ha"] = activity.area_ha
                 row["quantity_harvested_qt"] = activity.quantity_qt
                 row["harvest_date"] = activity.occurred_at.date()
+                row["harvest_verified"] = activity.verification_status == "VERIFIED"
                 area, quantity = activity.area_ha, activity.quantity_qt
                 row["yield_qt_per_ha"] = (
                     round(Decimal(quantity) / Decimal(area), 3) if area and quantity is not None else None

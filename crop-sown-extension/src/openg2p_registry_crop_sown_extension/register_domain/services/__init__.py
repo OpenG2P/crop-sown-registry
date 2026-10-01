@@ -1,3 +1,4 @@
 from .crop_sown_domain_service import G2PActivityDomainServiceCropSown
+from .g2p_register_domain_service_cluster import G2PRegisterDomainServiceCluster
 
-__all__ = ["G2PActivityDomainServiceCropSown"]
+__all__ = ["G2PActivityDomainServiceCropSown", "G2PRegisterDomainServiceCluster"]

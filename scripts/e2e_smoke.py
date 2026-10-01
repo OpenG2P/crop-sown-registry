@@ -3,7 +3,8 @@
 
 Records one crop season (plan → prepare → sow → observe → infestation →
 harvest) as a partner, checks idempotency and a blocked out-of-order activity,
-then reads the activities back with DCI search.
+corrects one of its own activities, then reads the activities back with DCI
+search.
 
     python3 scripts/e2e_smoke.py --partner-url http://localhost:18006 [--db-url postgresql://...]
 
@@ -120,6 +121,24 @@ def main() -> int:
     out = post(f"{base}/partner/activity/append_activities", envelope([blocked], args.signature))
     check(out["results"][0]["outcome"] == "FAILED" and out["results"][0]["error_code"] == "ACT-ERR-009",
           "harvest before sowing is blocked")
+
+    # A partner corrects its own record: the observation is superseded, not edited.
+    observed = result["results"][3].get("activity") or {}
+    correction = {
+        "signature": args.signature,
+        "header": {"sender_id": "csr-smoke-test", "message_id": str(uuid.uuid4()),
+                   "message_ts": datetime.now(timezone.utc).isoformat()},
+        "message": {"corrections": [{
+            "register_mnemonic": REG, "activity_id": observed.get("activity_id"), "action": "SUPERSEDE",
+            "reason": "Smoke test: condition re-assessed", "payload": {"crop_condition": "CC_FAIR"},
+            "idempotency_key": f"smoke:{run}:corrected",
+        }]},
+    }
+    corrected = post(f"{base}/partner/activity/correct_activities", correction)
+    fixed = (corrected.get("results") or [{}])[0]
+    check(fixed.get("outcome") == "SUPERSEDED"
+          and (fixed.get("activity") or {}).get("payload", {}).get("crop_condition") == "CC_FAIR",
+          f"partner correction supersedes its own activity ({fixed.get('outcome')} {fixed.get('error_code') or ''})")
 
     search = post(f"{base}/dci/registry/sync/search", dci_search(
         args.signature, now, "spdci-extensions-agri:CropActivity", f"FR-SMOKE-{run}"))

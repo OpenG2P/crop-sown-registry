@@ -31,6 +31,9 @@ _CONTEXT = {
     "longitude": {"type": "string", "title": "Longitude"},
     "geo_lowest_level_value_id": {"type": "string", "title": "Woreda (where the plot is)"},
     "remarks": {"type": "string", "title": "Remarks", "maxLength": 2000},
+    # When the crop on a plot is changed for the season, the new crop season
+    # names the one it replaces; that one is closed and points to the new one.
+    "replaces_crop_season_id": {"type": "string", "title": "Replaces crop season (if the crop was changed)"},
 }
 _CONTEXT_REQUIRED = ["farmer_id", "plot_id", "crop_year", "season", "crop"]
 
@@ -70,8 +73,10 @@ _REFERENCES = {
     # Identifiers held by other registries: format only, never blocking.
     "farmer_id": {"kind": "EXTERNAL", "system": "farmer-registry.farmer", "mode": "LENIENT",
                   "pattern": "^[A-Za-z0-9-]{3,64}$", "lookup": False},
+    # Entities first: the plot is registered in the Farmer Registry before crop
+    # activities are recorded on it, so there are no temporary plot IDs.
     "plot_id": {"kind": "EXTERNAL", "system": "farmer-registry.land", "mode": "LENIENT",
-                "pattern": "^[A-Za-z0-9-]{3,64}$", "temporary_prefix": "TMP-", "lookup": False},
+                "pattern": "^[A-Za-z0-9-]{3,64}$", "lookup": False},
     "da_id": {"kind": "EXTERNAL", "system": "da-registry", "mode": "LENIENT",
               "pattern": "^[A-Za-z0-9-]{3,64}$", "lookup": False},
     # The plot's woreda: where the crop season happened. It is the activity's
@@ -169,17 +174,14 @@ ACTIVITY_TYPES = [
         "description": "The plot is farmed as part of a production cluster this season.",
         "display_order": 35,
         "payload_schema": _schema(["cluster_id"], {
-            "cluster_id": {"type": "string", "title": "Cluster ID"},
-            "cluster_name": {"type": "string", "title": "Cluster name"},
-            "agro_ecological_zone": {"type": "string", "title": "Agro-ecological zone"},
-            "cluster_area_ha": {**_AREA, "title": "Cluster area (ha)"},
-            "smallholders_count": {"type": "integer", "minimum": 1, "title": "Smallholders in cluster"},
-            "water_source": {"type": "string", "title": "Water source"},
+            # The cluster is an entity in this registry's Cluster register
+            # (name, zone, area, smallholders, water); here only which one.
+            "cluster_id": {"type": "string", "title": "Cluster (code)"},
         }),
         "is_repeatable": False,
         "max_backdate_days": 365,
-        "reference_rules": _refs(("agro_ecological_zone", "AGRO_ECOLOGICAL_ZONE"),
-                                 ("water_source", "WATER_SOURCE")),
+        "reference_rules": {**_refs(), "cluster_id": {
+            "kind": "LOCAL_RECORD", "register": "Cluster", "match": "functional_record_id", "mode": "STRICT"}},
     },
     {
         "activity_type": "GROWTH_OBSERVED",
@@ -333,3 +335,15 @@ ODK_FORMS = [
         },
     },
 ]
+
+
+# Who takes part in each activity, by role. Each role reads a payload field and
+# is typed by that field's reference rule: the farmer and plot are Farmer
+# Registry identifiers, the development agent a DA Registry one, the cluster a
+# record of this registry's Cluster register. The farmer is the primary role.
+PARTICIPANT_ROLES = {
+    "farmer": {"field": "farmer_id", "primary": True},
+    "plot": {"field": "plot_id"},
+    "development_agent": {"field": "da_id"},
+    "cluster": {"field": "cluster_id"},
+}

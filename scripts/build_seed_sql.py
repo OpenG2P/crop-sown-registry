@@ -74,6 +74,10 @@ def activity_types_sql() -> str:
             "requires_verification": t.get("requires_verification", False),
             "reference_rules": t.get("reference_rules"),
             "ethiopian_date_fields": t.get("ethiopian_date_fields"),
+            "participant_roles": {
+                role: config for role, config in d.PARTICIPANT_ROLES.items()
+                if config["field"] in t["payload_schema"]["properties"]
+            },
         }
         out.append(upsert("g2p_activity_types", row, "register_id, activity_type"))
     return "".join(out)

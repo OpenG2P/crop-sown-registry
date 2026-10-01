@@ -70,6 +70,7 @@ class G2PActivityProjectionCropSown(G2PActivityProjection):
     sowing_date: Mapped[date] = mapped_column(Date, nullable=True)
     seed_type: Mapped[str] = mapped_column(String, nullable=True)
     sowing_verified: Mapped[bool] = mapped_column(Boolean, nullable=True)
+    harvest_verified: Mapped[bool] = mapped_column(Boolean, nullable=True)
     latest_growth_stage: Mapped[str] = mapped_column(String, nullable=True)
     latest_crop_condition: Mapped[str] = mapped_column(String, nullable=True)
     infestation_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

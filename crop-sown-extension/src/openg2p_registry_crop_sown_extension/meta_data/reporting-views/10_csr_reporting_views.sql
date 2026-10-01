@@ -45,7 +45,11 @@ SELECT
     p.geo_dimensions -> 'zone' ->> 'code'     AS zone_code,
     p.geo_dimensions -> 'zone' ->> 'name'     AS zone_name,
     p.geo_dimensions -> 'woreda' ->> 'code'   AS woreda_code,
-    p.geo_dimensions -> 'woreda' ->> 'name'   AS woreda_name
+    p.geo_dimensions -> 'woreda' ->> 'name'   AS woreda_name,
+    -- Added later: CREATE OR REPLACE VIEW only allows new columns at the end.
+    p.harvest_verified,
+    p.replaces_context_id                     AS replaces_crop_season_id,
+    p.replaced_by_context_id                  AS replaced_by_crop_season_id
 FROM g2p_activity_projection_crop_sown p;
 
 -- Crop performance at each level: crop seasons, farmers, plots, areas,

@@ -45,6 +45,10 @@ registry:
       # from a Secret the operator creates; see docs/deployment.md.
       REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_ENABLED: "false"
       REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_BASE_URL: "http://commons-services-odk-central-backend"
+      # Sample crop seasons for Master Data's sample people, recorded once through
+      # the activity write path (after db-seed has loaded the types and the
+      # sample clusters). Set "false" for a production install.
+      REGISTRY_CELERY_WORKERS_ACTIVITY_LOAD_SAMPLE_DATA: "true"
   celeryBeat:
     image:
       repository: openg2p/openg2p-crop-sown-registry-celery
@@ -54,8 +58,10 @@ registry:
       repository: openg2p/openg2p-crop-sown-registry-db-seed
       tag: 0.0.0-develop
     loadGeoData: false
-    # No sample records: activities are created through the APIs.
-    loadSampleData: false
+    # Loads the two sample clusters (docker/db-seed/load_sample_data.py) as
+    # approved Cluster records. Sample crop-season activities are not loaded
+    # here: the platform's Celery sample task creates them through the APIs.
+    loadSampleData: true
     loadImages: false
     loadTemplates: true
     # Code lists are NOT seeded or copied into this registry: activity reference
@@ -68,8 +74,8 @@ registry:
   iamRegister:
     applicationDescription: "Crop Sown Registry"
 
-  # The Crop Sown Registry issues no functional IDs (it has only an activity
-  # register), so it needs no ID generator.
+  # The Crop Sown Registry issues no functional IDs: CropSown is an activity
+  # register, and a Cluster's code is entered by staff. So no ID generator.
   idgenerator:
     enabled: false
 
@@ -81,3 +87,10 @@ registry:
   sanity:
     enabled: true
     runE2e: false
+
+  # AWE (cluster change requests and intake forms): nothing to set. The
+  # openg2p-registry chart enables it by default (global.aweEnabled: true) and,
+  # as for the Farmer Registry, points at the shared AWE in commons-services;
+  # db-seed then runs awe_meta_data/ (the Cluster policies and this release's
+  # callback secret) against the shared AWE database, and keycloak-init creates
+  # the approvers alex.carter / nina.patel the policies name.
