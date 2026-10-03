@@ -21,6 +21,23 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from . import crop_sown_samples
 
+try:
+    from openg2p_registry_core.helpers.master_data_client import (
+        MasterDataError,
+        get_master_data_client,
+        master_data_read_mode,
+    )
+except ImportError:  # a registry-platform build from before the catalogue client: Master Data's DB
+
+    class MasterDataError(Exception):
+        pass
+
+    def master_data_read_mode() -> str:
+        return "db"
+
+    def get_master_data_client():
+        raise MasterDataError("registry-platform has no Master Data client")
+
 _logger = logging.getLogger("crop-sown-domain-service")
 
 # Lifecycle stages in order. Infestation and damage reports do not move a crop
@@ -116,15 +133,8 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
         Cluster register's sample clusters (loaded by db-seed), so that enrolments
         are not skipped by a load that ran first.
         """
-        engine = get_engines().get("db_engine_master_data")
-        if engine is None:
-            return []
-        try:
-            async with async_sessionmaker(engine)() as session:
-                people = [dict(row._mapping) for row in await session.execute(text(
-                    "SELECT individual_id, age, national_id, geo_pcode FROM g2p_sample_individuals"
-                ))]
-        except Exception:
+        people = await _sample_people()
+        if people is None:
             _logger.info("No sample people in Master Data; crop-season samples not loaded")
             return []
         try:
@@ -376,3 +386,29 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
 
                 row[date_field] = date.fromisoformat(value[:10])
         return row
+
+
+async def _sample_people() -> Optional[list[dict]]:
+    """Master Data's sample people (individual_id, age, national_id, geo_pcode); None if unavailable.
+
+    Read through MDS's ``/samples/get_individuals`` with the platform's Master
+    Data client (master_data_read_mode = "api", the default), or from MDS's
+    g2p_sample_individuals table ("db", the rollback).
+    """
+    if master_data_read_mode() == "api":
+        try:
+            people = await get_master_data_client().sample_individuals()
+        except MasterDataError as error:
+            _logger.info("Sample people could not be read from Master Data: %s", error)
+            return None
+        return [{k: p.get(k) for k in ("individual_id", "age", "national_id", "geo_pcode")} for p in people]
+    engine = get_engines().get("db_engine_master_data")
+    if engine is None:
+        return None
+    try:
+        async with async_sessionmaker(engine)() as session:
+            return [dict(row._mapping) for row in await session.execute(text(
+                "SELECT individual_id, age, national_id, geo_pcode FROM g2p_sample_individuals"
+            ))]
+    except Exception:
+        return None

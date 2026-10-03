@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from openg2p_registry_core.schemas.activity import ActivityInput, SearchActivitiesPayload
 from openg2p_registry_crop_sown_extension.register_domain.models import G2PRegisterCluster
 
+from conftest import MASTER_DATA, READ_MODE  # test/integration is not a package
+
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 REG = "CropSown"
@@ -94,6 +96,9 @@ async def test_samples_load_once_from_master_data_people(service, clean, databas
         loaded = await samples.load(REG)
         assert loaded > 100
         assert await samples.load(REG) == 0  # idempotent
+        if READ_MODE == "api":
+            # The sample people came from Master Data's /samples API, not its database.
+            assert MASTER_DATA["stub"].calls["/samples/get_individuals"] >= 1
 
         async with database.connect() as conn:
             async def run(sql):

@@ -14,6 +14,13 @@ db-seed runs the SQL). Code lists are read from Master Data, not the registry:
 the Master Data engine points at this same database, which gets Master Data's
 two code-list tables filled from the ETH pack (core lists + agriculture domain),
 exactly what Master Data loads.
+
+Master Data is read the way MASTER_DATA_READ_MODE says (default ``api``): through
+the platform's catalogue API client against an in-memory stand-in for MDS
+(openg2p_registry_core.testing.master_data_stub) holding the same lists,
+geography and sample people as those tables; or, with ``db``, from the tables.
+
+    MASTER_DATA_READ_MODE=db pytest test/integration
 """
 
 import importlib
@@ -41,6 +48,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from master_data_pack import load_geography, load_lists, pack_dir  # noqa: E402
 
 DB_URL = os.environ.get("CSR_TEST_DB_URL", "postgresql+asyncpg://postgres:postgres@localhost:55432/csr_test")
+READ_MODE = os.environ.get("MASTER_DATA_READ_MODE", "api").strip().lower()
+MASTER_DATA = {}  # "stub": the catalogue stand-in in api mode
 META = Path(__file__).resolve().parents[2] / "crop-sown-extension/src/openg2p_registry_crop_sown_extension/meta_data"
 
 SEED_DIRS = ["register-metadata", "activity-metadata", "data-models", "registry-outbound-messages-templates",
@@ -106,15 +115,19 @@ async def _prepare():
         await conn.execute(text("CREATE TABLE g2p_attribute_values (value_id varchar NOT NULL, attribute_id varchar "
                                 "NOT NULL, value_code varchar, value_display varchar, parent_value_id varchar, "
                                 "sort_order integer, PRIMARY KEY (attribute_id, value_id))"))
+        attributes, attribute_values = [], []
         for code, doc in load_lists(pack).items():
-            await conn.execute(text("INSERT INTO g2p_attributes VALUES (:a, :c, :d, :h)"),
-                               {"a": doc["attribute_id"], "c": code, "d": doc.get("attribute_display"),
-                                "h": bool(doc.get("is_hierarchical"))})
-            for v in doc["values"]:
-                await conn.execute(text("INSERT INTO g2p_attribute_values VALUES (:id, :a, :c, :d, :p, :o)"),
-                                   {"id": v["value_id"], "a": doc["attribute_id"], "c": v.get("value_code"),
-                                    "d": v.get("value_display"), "p": v.get("parent_value_id"),
-                                    "o": v.get("sort_order")})
+            attributes.append({"attribute_id": doc["attribute_id"], "attribute_code": code,
+                               "attribute_display": doc.get("attribute_display"),
+                               "is_hierarchical": bool(doc.get("is_hierarchical"))})
+            attribute_values += [{"value_id": v["value_id"], "attribute_id": doc["attribute_id"],
+                                  "value_code": v.get("value_code"), "value_display": v.get("value_display"),
+                                  "parent_value_id": v.get("parent_value_id"), "sort_order": v.get("sort_order")}
+                                 for v in doc["values"]]
+        await conn.execute(text("INSERT INTO g2p_attributes VALUES (:attribute_id, :attribute_code, "
+                                ":attribute_display, :is_hierarchical)"), attributes)
+        await conn.execute(text("INSERT INTO g2p_attribute_values VALUES (:value_id, :attribute_id, :value_code, "
+                                ":value_display, :parent_value_id, :sort_order)"), attribute_values)
         # Master Data's geography tables, with the ETH pack's 1271 units.
         await conn.execute(text("CREATE TABLE g2p_geo_levels (level_id varchar PRIMARY KEY, "
                                 "level_mnemonic varchar, parent_level_id varchar)"))
@@ -137,11 +150,30 @@ async def _prepare():
             text("INSERT INTO g2p_sample_individuals VALUES (:individual_id, :age, :national_id, :geo_pcode)"),
             [{k: p.get(k) for k in ("individual_id", "age", "national_id", "geo_pcode")} for p in people],
         )
+        use_master_data(READ_MODE, attributes, attribute_values, levels, units, people)
         raw = (await conn.get_raw_connection()).driver_connection  # asyncpg: multi-statement like psql
         for directory in SEED_DIRS:
             for path in sorted((META / directory).glob("*.sql")):
                 await raw.execute(path.read_text())
     return engine
+
+
+def use_master_data(mode, attributes, attribute_values, levels, units, people):
+    """Read Master Data the given way; in api mode through a stand-in holding the same data."""
+    from openg2p_registry_core.config import Settings
+    from openg2p_registry_core.helpers.master_data_client import set_master_data_client
+    from openg2p_registry_core.testing.master_data_stub import stub_from_tables
+
+    Settings.get_config(strict=False).master_data_read_mode = mode
+    if mode != "api":
+        set_master_data_client(None)
+        return None
+    level_values = [{k: u[k] for k in ("level_value_id", "level_id", "level_value_mnemonic", "parent_level_value_id")}
+                    for u in units]
+    stub = stub_from_tables(attributes, attribute_values, levels, level_values, people)
+    set_master_data_client(stub.client(poll_seconds=0))
+    MASTER_DATA["stub"] = stub
+    return stub
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
