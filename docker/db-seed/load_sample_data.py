@@ -5,10 +5,12 @@ Inserts two approved Cluster records straight into g2p_register_clusters, as if
 they had been registered and approved — the way the Farmer Registry's loader
 inserts approved farmers. Idempotent: ON CONFLICT DO NOTHING on the record id.
 
-geo_code_hierarchy_json is the woreda's ancestry read from Master Data (MD_PG*),
-in the shape registry-core's G2PGeoHierarchyService produces at runtime. If
-Master Data is unreachable the woreda id is still stored and the hierarchy is
-left empty.
+geo_code_hierarchy_json is the woreda's ancestry read from Master Data through
+its API (/catalogue/get_geo_unit with its ancestors, via the platform's
+/seed/mds_client.py and the MDS_* env the chart passes), in the shape
+registry-core's G2PGeoHierarchyService produces at runtime. Master Data's
+database is never read. If Master Data is unreachable the woreda id is still
+stored and the hierarchy is left empty.
 
 Sample crop-season activities are not loaded here: they go through the activity
 APIs (the platform's sample task), not straight into tables.
@@ -72,47 +74,34 @@ def env(name: str) -> str:
     return value
 
 
-def load_geo_by_id() -> dict:
-    """level_value_id -> (level mnemonic, name, parent id) from Master Data; {} if unavailable."""
-    host, dbname = os.environ.get("MD_PGHOST"), os.environ.get("MD_PGDATABASE")
-    if not host or not dbname:
-        log("MD_PG* not set — clusters are stored without a geo hierarchy.")
-        return {}
+def master_data():
+    """The platform's Master Data API client, or None (logged) when unavailable."""
     try:
-        conn = psycopg2.connect(
-            host=host, port=os.environ.get("MD_PGPORT", "5432"), dbname=dbname,
-            user=os.environ.get("MD_PGUSER", ""), password=os.environ.get("MD_PGPASSWORD", ""),
-        )
-    except Exception as exc:  # noqa: BLE001
-        log(f"master-data unreachable ({exc}) — clusters are stored without a geo hierarchy.")
-        return {}
-    try:
-        with conn.cursor() as cur:
-            cur.execute("select level_id, level_mnemonic from g2p_geo_levels")
-            mnemonic = dict(cur.fetchall())
-            cur.execute("select level_value_id, level_id, level_value_mnemonic, parent_level_value_id"
-                        " from g2p_geo_level_values")
-            return {vid: (mnemonic.get(lid, lid), name, parent) for vid, lid, name, parent in cur.fetchall()}
-    except Exception as exc:  # noqa: BLE001
-        log(f"could not read master-data geo ({exc}) — clusters are stored without a geo hierarchy.")
-        return {}
-    finally:
-        conn.close()
-
-
-def geo_hierarchy(woreda: str, geo_by_id: dict):
-    """The woreda's ancestry, root first, or None when Master Data does not know it."""
-    chain, seen, current = [], set(), woreda
-    while current and current in geo_by_id and current not in seen:
-        seen.add(current)
-        level, name, parent = geo_by_id[current]
-        chain.append({"level_mnemonic": level, "level_value_mnemonic": name, "level_value_id": current})
-        current = parent
-    if not chain:
-        if geo_by_id:
-            log(f"woreda {woreda} is not in master-data — stored without a geo hierarchy.")
+        from mds_client import MdsClient  # /seed/mds_client.py, from the RP db-seed base image
+    except ImportError:
+        log("mds_client.py is not in this image — clusters are stored without a geo hierarchy.")
         return None
-    return Json({"hierarchy": list(reversed(chain))})
+    client = MdsClient.from_env()
+    if client is None:
+        log("MDS_API_URL not set — clusters are stored without a geo hierarchy.")
+    return client
+
+
+def geo_hierarchy(woreda: str, client):
+    """The woreda's ancestry, root first, or None when Master Data does not know it."""
+    if client is None:
+        return None
+    from mds_client import MdsError
+
+    try:
+        hierarchy = client.geo_hierarchy_json(woreda)
+    except MdsError as exc:
+        log(f"could not read woreda {woreda} from master-data ({exc}) — stored without a geo hierarchy.")
+        return None
+    if not hierarchy:
+        log(f"woreda {woreda} is not in master-data — stored without a geo hierarchy.")
+        return None
+    return Json(hierarchy)
 
 
 def search_text(cluster: dict) -> str:
@@ -122,7 +111,7 @@ def search_text(cluster: dict) -> str:
 
 
 def main() -> None:
-    geo_by_id = load_geo_by_id()
+    mds = master_data()
     columns = [
         "internal_record_id", "functional_record_id", "record_name",
         "created_by", "created_at", "last_approved_at", "last_approved_by",
@@ -147,7 +136,7 @@ def main() -> None:
                     cluster["internal_record_id"], cluster["functional_record_id"], cluster["cluster_name"],
                     SEEDER, CREATED_AT, CREATED_AT, SEEDER,
                     search_text(cluster), "ACTIVE", cluster["geo_lowest_level_value_id"],
-                    geo_hierarchy(cluster["geo_lowest_level_value_id"], geo_by_id),
+                    geo_hierarchy(cluster["geo_lowest_level_value_id"], mds),
                     *(cluster[f] for f in FIELDS),
                 ])
                 inserted += cur.rowcount

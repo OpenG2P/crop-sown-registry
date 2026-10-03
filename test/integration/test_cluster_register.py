@@ -1,6 +1,7 @@
 """The Cluster entity register: its seeded metadata, and a record round-tripping through its table."""
 
 import importlib.util
+import os
 import sys
 import types
 from datetime import datetime
@@ -46,6 +47,26 @@ def _sample_loader():
                 sys.modules.pop(name, None)
             else:
                 sys.modules[name] = original
+
+
+def _mds_client(levels, units):
+    """The platform's seed MDS client (registry-platform docker/db-seed/mds_client.py,
+    /seed/mds_client.py in the db-seed image) over the catalogue stand-in."""
+    import httpx
+    from openg2p_registry_core.testing.master_data_stub import BASE_URL, TOKEN_URL, stub_from_tables
+
+    seed_dir = Path(os.environ.get("RP_DB_SEED_DIR", Path(__file__).resolve().parents[3] / "registry-platform/docker/db-seed"))
+    if str(seed_dir) not in sys.path:
+        sys.path.insert(0, str(seed_dir))
+    mds_client = pytest.importorskip("mds_client", reason="registry-platform's docker/db-seed/mds_client.py not found (set RP_DB_SEED_DIR)")
+    stub = stub_from_tables(levels=levels, level_values=units)
+
+    def send(method, url, headers, body):
+        response = stub._handle(httpx.Request(method, url, headers=headers, content=body or b""))
+        return response.status_code, response.content
+
+    return mds_client.MdsClient(BASE_URL, token_url=TOKEN_URL, client_id="registry-staff-portal",
+                                client_secret="secret", transport=send)
 
 
 async def test_cluster_register_is_seeded(database):
@@ -135,10 +156,11 @@ async def test_sample_clusters_use_master_data_codes_and_woredas(database):
     async with database.connect() as conn:
         codes = {(a, v) for a, v in (await conn.execute(
             text("SELECT attribute_id, value_id FROM g2p_attribute_values"))).all()}
-        geo = {r.level_value_id: (r.level_mnemonic, r.level_value_mnemonic, r.parent_level_value_id)
-               for r in (await conn.execute(text(
-                   "SELECT v.level_value_id, l.level_mnemonic, v.level_value_mnemonic, v.parent_level_value_id "
-                   "FROM g2p_geo_level_values v JOIN g2p_geo_levels l ON l.level_id = v.level_id"))).all()}
+        levels = [dict(r._mapping) for r in (await conn.execute(text(
+            "SELECT level_id, level_mnemonic, parent_level_id FROM g2p_geo_levels")))]
+        units = [dict(r._mapping) for r in (await conn.execute(text(
+            "SELECT level_value_id, level_id, level_value_mnemonic, parent_level_value_id "
+            "FROM g2p_geo_level_values")))]
 
     assert [c["functional_record_id"] for c in loader.CLUSTERS] == ["CL-ET0406-001", "CL-ET0101-001"]
     for cluster in loader.CLUSTERS:
@@ -147,7 +169,9 @@ async def test_sample_clusters_use_master_data_codes_and_woredas(database):
             assert (attribute, cluster[field]) in codes, (cluster["functional_record_id"], field)
         assert set(loader.FIELDS) <= set(G2PRegisterCluster.__table__.columns.keys())
 
-    hierarchy = loader.geo_hierarchy("ET040611", geo)["hierarchy"]
+    # The loader reads the geography through Master Data's API, never its database:
+    # serve the pack's geography from the platform's catalogue stand-in.
+    hierarchy = loader.geo_hierarchy("ET040611", _mds_client(levels, units))["hierarchy"]
     assert [(h["level_mnemonic"], h["level_value_id"]) for h in hierarchy] == [
         ("country", "ET"), ("region", "ET04"), ("zone", "ET0406"), ("woreda", "ET040611")]
     assert hierarchy[-1]["level_value_mnemonic"] == "Sheno town"

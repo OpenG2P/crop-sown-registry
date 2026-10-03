@@ -18,11 +18,10 @@ global:
   registryDBUser: '{{ printf "%s_user" .Release.Name | replace "-" "_" }}'
   registryDBSecret: '{{ .Release.Name }}'
   registryDBUserPasswordKey: '{{ .Release.Name }}-db-user'
-  masterDataDB: 'master_data'
-  masterDataDBPort: 5432
-  masterDataDBUser: 'master_data_user'
-  masterDataDBSecret: 'master-data-db'
-  masterDataDBUserPasswordKey: 'master-data-db-user'
+  # No Master Data database settings: the registry reads Master Data through its
+  # API (the subchart's global.masterDataReadMode 'api'), and seeding never
+  # touches MDS's database. The subchart keeps masterDataDB* defaults for its 'db'
+  # rollback mode only.
 
 registry:
   # Crop-sown images, each FROM the matching openg2p-registry base image. CI
@@ -57,7 +56,6 @@ registry:
     image:
       repository: openg2p/openg2p-crop-sown-registry-db-seed
       tag: 0.0.0-develop
-    loadGeoData: false
     # Off by default. When on, loads the two sample clusters
     # (docker/db-seed/load_sample_data.py) as approved Cluster records. Sample
     # crop-season activities are not loaded here: the platform's Celery sample
@@ -70,7 +68,9 @@ registry:
     # from Master Data. They are the ETH pack's agriculture domain, loaded by the
     # master-data chart with geoSeed.domains: [agriculture] — set there, not
     # here. Without it every activity is rejected on its crop code.
-    syncGeoWidgets: false
+    # The sample clusters' geo hierarchy is read through Master Data's API
+    # (MDS_* env from the subchart's db-seed Job), and the Cluster form's location
+    # widget takes the country's geo levels from Master Data at runtime.
 
   iamRegister:
     applicationDescription: "Crop Sown Registry"
