@@ -176,7 +176,7 @@ ACTIVITY_TYPES = [
         "payload_schema": _schema(["cluster_id"], {
             # The cluster is an entity in this registry's Cluster register
             # (name, zone, area, smallholders, water); here only which one.
-            "cluster_id": {"type": "string", "title": "Cluster (code)"},
+            "cluster_id": {"type": "string", "title": "Cluster ID"},
         }),
         "is_repeatable": False,
         "max_backdate_days": 365,

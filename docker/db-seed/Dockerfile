@@ -6,6 +6,8 @@
 #                        Cluster entity register (sections, tabs, intake form)
 #   awe-integration/     Cluster change requests / intake forms -> AWE policy keys
 #   activity-metadata/   activity types (JSON Schemas, rules), indicators, ODK forms
+#   zz-upgrades/         brings an existing install's Cluster register to the
+#                        current metadata (runs last; idempotent)
 #   templates/           DCI rendering of an activity
 #   awe_meta_data/       Cluster approval policies + this release's callback secret
 #                        (run against the shared AWE database)

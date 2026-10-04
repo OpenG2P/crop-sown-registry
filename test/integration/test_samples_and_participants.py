@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 
 import pytest
+from openg2p_registry_core.errors import G2PRegistryException
 import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -17,7 +18,11 @@ pytestmark = pytest.mark.asyncio(loop_scope="session")
 REG = "CropSown"
 BASE = {"farmer_id": "FR-0001", "plot_id": "LAND-0001-1", "crop_year": 2019, "season": "SEASON_MEHER",
         "crop": "CROP_TEFF", "geo_lowest_level_value_id": "ET010101"}
-CLUSTER_IDS = ("CL-ET0406-001", "CL-ET0101-001")
+# Generated Cluster IDs (pool "cluster", CL- prefix); the programme's codes are programme_cluster_code.
+CLUSTERS = (("CL-4729318560", "CL-ET0406-001", "CROP_TEFF", "ET040611"),
+            ("CL-5863027194", "CL-ET0101-001", "CROP_WHEAT", "ET010101"))
+CLUSTER_IDS = tuple(c[0] for c in CLUSTERS)
+WHEAT_CLUSTER = "CL-5863027194"  # in Tahtay Adiyabo (ET010101)
 
 
 def act(activity_type, days_ago, key=None, **payload):
@@ -30,10 +35,10 @@ def act(activity_type, days_ago, key=None, **payload):
 async def clusters(database):
     sessions = async_sessionmaker(database, expire_on_commit=False)
     async with sessions() as session:
-        for code, crop, woreda in (("CL-ET0406-001", "CROP_TEFF", "ET040611"),
-                                   ("CL-ET0101-001", "CROP_WHEAT", "ET010101")):
+        for cluster_id, code, crop, woreda in CLUSTERS:
             session.add(G2PRegisterCluster(
-                functional_record_id=code, cluster_name=code, crop=crop, geo_lowest_level_value_id=woreda,
+                functional_record_id=cluster_id, programme_cluster_code=code, cluster_name=code, crop=crop,
+                geo_lowest_level_value_id=woreda,
                 created_by="test", created_at=datetime(2026, 9, 26), last_approved_at=datetime(2026, 9, 26),
                 last_approved_by="test",
             ))
@@ -52,17 +57,19 @@ async def test_participants_are_typed_and_searchable(service, clean, clusters):
     assert roles["development_agent"].ref_id == "DA-ET010101"
 
     # The cluster is an entity in this instance: a LOCAL participant, resolved to its record.
-    enrolled, _ = await service.append(act("CLUSTER_ENROLLED", 25, cluster_id="CL-ET0101-001"), "da-01", "STAFF_PORTAL")
+    enrolled, _ = await service.append(act("CLUSTER_ENROLLED", 25, cluster_id=WHEAT_CLUSTER), "da-01", "STAFF_PORTAL")
     cluster = next(p for p in enrolled.participants if p.role == "cluster")
     assert cluster.ref_kind == "LOCAL" and cluster.ref_register == "Cluster" and cluster.internal_record_id
 
-    found, _ = await service.search(SearchActivitiesPayload(register_mnemonic=REG, participant_id="CL-ET0101-001",
+    found, _ = await service.search(SearchActivitiesPayload(register_mnemonic=REG, participant_id=WHEAT_CLUSTER,
                                                             participant_role="cluster"), None)
     assert [a.activity_id for a in found] == [enrolled.activity_id]
 
-    # Entities first: an unknown cluster is rejected, not recorded for later.
-    with pytest.raises(Exception):
-        await service.append(act("CLUSTER_ENROLLED", 25, cluster_id="CL-NOPE-001"), "da-01", "STAFF_PORTAL")
+    # Entities first: an unknown cluster is rejected, not recorded for later. A cluster is
+    # enrolled by its Cluster ID, not by its programme's code.
+    for unknown in ("CL-NOPE-001", "CL-ET0101-001"):
+        with pytest.raises(Exception):
+            await service.append(act("CLUSTER_ENROLLED", 25, cluster_id=unknown), "da-01", "STAFF_PORTAL")
 
 
 async def test_changed_crop_replaces_its_season(service, clean, database):
@@ -82,13 +89,16 @@ async def test_samples_load_once_from_master_data_people(service, clean, databas
     from openg2p_registry_core.services import G2PActivitySampleService
 
     samples = G2PActivitySampleService()
-    assert await samples.load(REG) == 0  # waits for the sample clusters
+    # No sample clusters yet: an error naming the missing source, not a silent "nothing loaded".
+    with pytest.raises(G2PRegistryException, match="No sample clusters"):
+        await samples.load(REG)
 
+    # A cluster whose generated ID says nothing about where it is: the samples find it by its woreda.
     sessions = async_sessionmaker(database, expire_on_commit=False)
     async with sessions() as session:
         session.add(G2PRegisterCluster(
-            functional_record_id="CL-ET0101-001", cluster_name="Tahtay Adiyabo wheat cluster", crop="CROP_WHEAT",
-            geo_lowest_level_value_id="ET010101", created_by="test", created_at=datetime(2026, 9, 26),
+            functional_record_id=WHEAT_CLUSTER, programme_cluster_code="CL-ET0101-001",
+            cluster_name="Tahtay Adiyabo wheat cluster", crop="CROP_WHEAT", geo_lowest_level_value_id="ET010101", created_by="test", created_at=datetime(2026, 9, 26),
             last_approved_at=datetime(2026, 9, 26), last_approved_by="test",
         ))
         await session.commit()
@@ -114,13 +124,13 @@ async def test_samples_load_once_from_master_data_people(service, clean, databas
                 "SELECT verification_status, count(*) FROM g2p_activity_crop_sown "
                 "WHERE status = 'ACTIVE' AND activity_type IN ('SOWN', 'HARVESTED') GROUP BY 1")).all())
             assert verification.get("VERIFIED") and verification.get("SUBMITTED")  # some await verification
-            enrolled = (await run(
-                "SELECT count(*) FROM g2p_activity_participants WHERE role = 'cluster' "
-                "AND ref_id = 'CL-ET0101-001'")).scalar()
-            assert enrolled == 4  # the four adults in Tahtay Adiyabo
+            enrolled = dict((await run(
+                "SELECT ref_id, count(*) FROM g2p_activity_participants WHERE role = 'cluster' GROUP BY 1")).all())
+            assert enrolled == {WHEAT_CLUSTER: 4}  # the four adults in Tahtay Adiyabo
     finally:
         async with database.begin() as conn:
-            await conn.execute(text("DELETE FROM g2p_register_clusters WHERE functional_record_id = 'CL-ET0101-001'"))
+            await conn.execute(text("DELETE FROM g2p_register_clusters WHERE functional_record_id = :id"),
+                               {"id": WHEAT_CLUSTER})
 
 
 async def test_correction_cannot_change_the_crop_season(service, clean):

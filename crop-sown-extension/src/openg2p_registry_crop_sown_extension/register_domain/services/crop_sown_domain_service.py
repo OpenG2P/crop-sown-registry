@@ -9,6 +9,7 @@ import logging
 
 from openg2p_fastapi_common.context import dbengine
 from openg2p_registry_core.engine import get_engines
+from openg2p_registry_core.errors import G2PRegistryErrorCodes, G2PRegistryException
 from openg2p_registry_core.helpers.ethiopian_calendar import ethiopian_to_gregorian
 from openg2p_registry_core.services import (
     ActivityAggregateResult,
@@ -129,23 +130,40 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
     async def sample_activities(self, register) -> list[SampleStep]:
         """Sample crop seasons for Master Data's sample people (see ``crop_sown_samples``).
 
-        Empty until both sources are there: Master Data's sample people, and the
-        Cluster register's sample clusters (loaded by db-seed), so that enrolments
-        are not skipped by a load that ran first.
+        Asked for only when sample crop seasons are switched on, so a missing
+        source is an error, not "nothing to load": the install-time samples Job
+        then fails with the reason. Both must be there: Master Data's sample
+        people, and the Cluster register's sample clusters (loaded by db-seed,
+        which runs before the Job).
         """
         people = await _sample_people()
-        if people is None:
-            _logger.info("No sample people in Master Data; crop-season samples not loaded")
-            return []
+        if not people:
+            raise G2PRegistryException(
+                code=G2PRegistryErrorCodes.INVALID_REQUEST.value[1],
+                message="No sample people in Master Data: load its samples (masterData.geoSeed.load.samples)",
+            )
         try:
             async with async_sessionmaker(dbengine.get())() as session:
-                clusters = {row[0] for row in await session.execute(text(
-                    "SELECT functional_record_id FROM g2p_register_clusters"
-                ))}
-        except Exception:
-            clusters = set()
-        if not people or not clusters:
-            return []
+                rows = (await session.execute(text(
+                    "SELECT geo_lowest_level_value_id, functional_record_id, crop FROM g2p_register_clusters "
+                    "WHERE record_status = 'ACTIVE' AND geo_lowest_level_value_id IS NOT NULL "
+                    "AND functional_record_id NOT LIKE 'TEMP-%' ORDER BY functional_record_id"
+                ))).all()
+        except Exception as error:
+            raise G2PRegistryException(
+                code=G2PRegistryErrorCodes.UNEXPECTED_ERROR.value[1],
+                message=f"Could not read the Cluster register: {type(error).__name__}",
+            ) from error
+        # Clusters by woreda (the first by Cluster ID where a woreda has several):
+        # their IDs are generated, so the samples go by where a cluster is.
+        clusters: dict[str, tuple[str, str | None]] = {}
+        for woreda, cluster_id, crop in rows:
+            clusters.setdefault(woreda, (cluster_id, crop))
+        if not clusters:
+            raise G2PRegistryException(
+                code=G2PRegistryErrorCodes.INVALID_REQUEST.value[1],
+                message="No sample clusters in the Cluster register: turn on Load Sample Data (registry.dbSeed.loadSampleData)",
+            )
         return crop_sown_samples.build_steps(people, clusters)
 
     # ------------------------------------------------------- derived values

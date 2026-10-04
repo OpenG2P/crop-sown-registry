@@ -34,10 +34,6 @@ CROPS = [
     ("CROP_BARLEY", "VAR_BARLEY_HB1307", 22),
 ]
 
-# The sample clusters (loaded by db-seed into the Cluster register) and their crop, by woreda.
-# A farmer in a cluster's woreda grows the cluster's crop on plot 1, and enrols it.
-CLUSTERS_BY_WOREDA = {"ET040611": ("CL-ET0406-001", "CROP_TEFF"), "ET010101": ("CL-ET0101-001", "CROP_WHEAT")}
-
 # (crop year, season, dates of each stage). The past Meher season is complete;
 # the Belg season is complete for some farmers; the current Meher season is
 # growing, so its harvests fall due on the work list.
@@ -64,9 +60,16 @@ def plot_ids(number: str) -> list[str]:
     return [f"LAND-{number}-1"] + ([f"LAND-{number}-2"] if int(number) % 3 == 0 else [])
 
 
-def build_steps(people: list[dict], clusters: Optional[set[str]] = None) -> list[SampleStep]:
-    """Sample steps for adult sample people. ``people`` rows: individual_id, age, national_id, geo_pcode."""
-    clusters = clusters or set()
+def build_steps(people: list[dict], clusters: Optional[dict[str, tuple[str, Optional[str]]]] = None
+                ) -> list[SampleStep]:
+    """Sample steps for adult sample people. ``people`` rows: individual_id, age, national_id, geo_pcode.
+
+    ``clusters`` maps a woreda to the Cluster register's cluster there, as
+    (Cluster ID, crop): read from the register (db-seed loads the sample clusters),
+    so the generated Cluster IDs are never assumed. A farmer in a cluster's woreda
+    grows the cluster's crop on plot 1, and enrols it.
+    """
+    clusters = clusters or {}
     steps: list[SampleStep] = []
     corrected = False
     for person in sorted(people, key=lambda p: p["individual_id"]):
@@ -81,9 +84,9 @@ def build_steps(people: list[dict], clusters: Optional[set[str]] = None) -> list
             "geo_lowest_level_value_id": person["geo_pcode"],
             "da_id": f"DA-{person['geo_pcode']}",
         }
-        cluster, cluster_crop = CLUSTERS_BY_WOREDA.get(person["geo_pcode"], (None, None))
-        if cluster not in clusters:
-            cluster = cluster_crop = None
+        cluster, cluster_crop = clusters.get(person["geo_pcode"], (None, None))
+        if cluster_crop and not any(c[0] == cluster_crop for c in CROPS):
+            cluster_crop = None  # a crop the samples have no variety for: the farmer's own rotation
         for plot_index, plot in enumerate(plot_ids(number)):
             crop, variety, crop_yield = CROPS[(seq + plot_index) % len(CROPS)]
             if cluster_crop and plot_index == 0:

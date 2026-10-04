@@ -112,10 +112,10 @@ REGISTRY_DB="${RELEASE_UNDERSCORED}"
 REGISTRY_USER="${RELEASE_UNDERSCORED}_user"
 IDGEN_DB="${RELEASE_UNDERSCORED}_idgenerator"
 IDGEN_USER="${RELEASE_UNDERSCORED}_idgenerator_user"
-# The Crop Sown Registry turns the ID generator off, and has no AWE workflows by
-# default; their DBs/roles are dropped only if an install enabled them (DROP ...
-# IF EXISTS). If AWE was enabled its role must go, else a reinstall regenerates
-# the `<release>-awe` secret while the role keeps its old password.
+# The ID generator (Cluster IDs) and AWE (Cluster approvals) each have their own
+# DB and role; they are dropped only if the install has them (DROP ... IF
+# EXISTS). The AWE role must go, else a reinstall regenerates the
+# `<release>-awe` secret while the role keeps its old password.
 #   values.yaml: aweDB '{{ .Release.Name }}_awe', aweDBUser '{{ .Release.Name }}_awe_user'
 AWE_DB="${RELEASE_UNDERSCORED}_awe"
 AWE_USER="${RELEASE_UNDERSCORED}_awe_user"

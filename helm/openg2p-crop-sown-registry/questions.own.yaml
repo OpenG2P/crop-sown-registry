@@ -40,7 +40,8 @@
     Record sample crop seasons (plans, sowings, observations, harvests) for
     Master Data's sample people, once, after install. Needs "Load Sample Data"
     (the sample clusters) and Master Data's country samples. Leave off for
-    production.
+    production. If any sample cannot be loaded, the install fails (see the
+    activity-samples Job's log).
   type: enum
   options:
     - "false"

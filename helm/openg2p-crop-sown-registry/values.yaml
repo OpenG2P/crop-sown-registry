@@ -81,10 +81,19 @@ registry:
   iamRegister:
     applicationDescription: "Crop Sown Registry"
 
-  # The Crop Sown Registry issues no functional IDs: CropSown is an activity
-  # register, and a Cluster's code is entered by staff. So no ID generator.
+  # Functional-ID pools, one per register that mints IDs: the Cluster register
+  # (pool = register mnemonic in lowercase; the extension adds the CL- prefix, so
+  # a Cluster ID reads CL-4729318560). CropSown is an activity register and needs
+  # no pool. As for the Farmer Registry: Helm merges maps, so the subcharts'
+  # default pools (individual, household, farmer) are inherited and provisioned
+  # unused — harmless, and a parent `null` cannot remove a subchart default.
   idgenerator:
-    enabled: false
+    enabled: true
+    idGenerator:
+      appConfig:
+        idTypes:
+          cluster:
+            idLength: 10
 
   # The platform's sanity suite, from its own image: the smoke tier (partner API
   # live, DCI search route served) runs on every install/upgrade and needs

@@ -53,7 +53,7 @@ MASTER_DATA = {}  # "stub": the catalogue stand-in in api mode
 META = Path(__file__).resolve().parents[2] / "crop-sown-extension/src/openg2p_registry_crop_sown_extension/meta_data"
 
 SEED_DIRS = ["register-metadata", "activity-metadata", "data-models", "registry-outbound-messages-templates",
-             "reporting-views", "awe-integration"]
+             "reporting-views", "awe-integration", "zz-upgrades"]
 
 
 async def _prepare():

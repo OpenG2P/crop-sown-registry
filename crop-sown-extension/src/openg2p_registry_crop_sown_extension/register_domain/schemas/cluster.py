@@ -11,6 +11,7 @@ from openg2p_registry_core.schemas import (
 
 class G2PSchemaCluster:
 
+    programme_cluster_code: Optional[str] = None
     cluster_name: Optional[str] = None
     crop: Optional[str] = None
     agro_ecological_zone: Optional[str] = None

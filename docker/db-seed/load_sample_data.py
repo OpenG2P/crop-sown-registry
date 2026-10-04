@@ -5,6 +5,12 @@ Inserts two approved Cluster records straight into g2p_register_clusters, as if
 they had been registered and approved — the way the Farmer Registry's loader
 inserts approved farmers. Idempotent: ON CONFLICT DO NOTHING on the record id.
 
+Like the Farmer Registry's sample farmers (FR-0007 ...), the sample clusters
+carry fixed functional IDs rather than calling the ID generator, so a reinstall
+produces the same data; they have the generator's shape (pool "cluster": the CL-
+prefix and ten digits). The cluster programme's codes (CL-ET0406-001 ...) are
+their programme_cluster_code.
+
 geo_code_hierarchy_json is the woreda's ancestry read from Master Data through
 its API (/catalogue/get_geo_unit with its ancestors, via the platform's
 /seed/mds_client.py and the MDS_* env the chart passes), in the shape
@@ -28,7 +34,8 @@ CREATED_AT = "2026-09-26 00:00:00"
 CLUSTERS = [
     {
         "internal_record_id": "c5000000-0000-4000-8000-0000000c1001",
-        "functional_record_id": "CL-ET0406-001",
+        "functional_record_id": "CL-4729318560",
+        "programme_cluster_code": "CL-ET0406-001",
         "cluster_name": "Sheno teff cluster",
         "crop": "CROP_TEFF",
         "geo_lowest_level_value_id": "ET040611",  # Sheno town, North Shewa (OR), Oromia
@@ -42,7 +49,8 @@ CLUSTERS = [
     },
     {
         "internal_record_id": "c5000000-0000-4000-8000-0000000c1002",
-        "functional_record_id": "CL-ET0101-001",
+        "functional_record_id": "CL-5863027194",
+        "programme_cluster_code": "CL-ET0101-001",
         "cluster_name": "Tahtay Adiyabo wheat cluster",
         "crop": "CROP_WHEAT",
         "geo_lowest_level_value_id": "ET010101",  # Tahtay Adiyabo, Tigray
@@ -57,7 +65,7 @@ CLUSTERS = [
 ]
 
 FIELDS = [
-    "cluster_name", "crop", "agro_ecological_zone", "water_source", "cluster_area_ha",
+    "programme_cluster_code", "cluster_name", "crop", "agro_ecological_zone", "water_source", "cluster_area_ha",
     "number_of_smallholders", "established_year", "coordinator_name", "coordinator_phone",
 ]
 
@@ -105,7 +113,7 @@ def geo_hierarchy(woreda: str, client):
 
 
 def search_text(cluster: dict) -> str:
-    parts = [cluster["functional_record_id"], cluster["cluster_name"], cluster["crop"],
+    parts = [cluster["functional_record_id"], cluster["programme_cluster_code"], cluster["cluster_name"], cluster["crop"],
              cluster["geo_lowest_level_value_id"], cluster["coordinator_name"], cluster["coordinator_phone"]]
     return " ".join(str(p) for p in parts if p)
 

@@ -4,8 +4,14 @@ from openg2p_registry_core.models.g2p_register import G2PRegister
 
 
 class G2PIdGeneratorService(BaseService, G2PIdGeneratorInterface):
-    """The Crop Sown Registry issues no functional IDs (it holds only an activity
-    register); this exists because the platform resolves an ID generator by name."""
+    """Prefixes for generated functional IDs. Only the Cluster register mints IDs
+    (pool ``cluster`` in the ID generator: the register mnemonic in lowercase);
+    CropSown is an activity register and needs none."""
 
     def generate_prefix_suffix(self, g2p_register: G2PRegister, register_mnemonic: str) -> IdAffix:
-        return IdAffix(prefix="CSR-", suffix="")
+        mnemonic = (register_mnemonic or "").lower()
+
+        if mnemonic == "cluster":
+            return IdAffix(prefix="CL-", suffix="")
+
+        return IdAffix(prefix="DEFAULT-", suffix="")

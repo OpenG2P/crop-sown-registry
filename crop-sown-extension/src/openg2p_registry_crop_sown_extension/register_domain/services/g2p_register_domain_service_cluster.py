@@ -36,9 +36,10 @@ class G2PRegisterDomainServiceCluster(G2PRegisterDomainService):
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for cluster")
 
-        # The cluster code (functional_record_id) is added by G2PRegister. The name is
+        # The Cluster ID (functional_record_id) is added by G2PRegister. The name is
         # listed here because record_name is only derived after search_text on insert.
         keys = [
+            "programme_cluster_code",
             "cluster_name",
             "crop",
             "geo_lowest_level_value_id",
