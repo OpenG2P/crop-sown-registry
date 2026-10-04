@@ -12,6 +12,12 @@ global:
   registryVariant: 'crop-sown-registry'
   registryHostname: '{{ .Release.Name }}.{{ tpl .Values.global.baseDomain $ }}'
 
+  # Object store: the in-cluster commons Garage (S3-compatible; replaced MinIO).
+  # Same as the openg2p-registry subchart default; set here too so this chart
+  # works on subchart versions that still default to the old MinIO host.
+  minioHost: 'commons-garage:3900'
+  minioSecure: false
+
   postgresqlHost: commons-postgresql
   registryDB: '{{ printf "%s" .Release.Name | replace "-" "_" }}'
   registryDBPort: 5432
