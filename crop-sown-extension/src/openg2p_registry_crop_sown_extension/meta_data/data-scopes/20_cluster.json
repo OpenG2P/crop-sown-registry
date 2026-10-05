@@ -1,0 +1,26 @@
+{
+  "scopes": [
+    {
+      "name": "csr_cluster_details",
+      "label": "Cluster details (with coordinator contact)",
+      "description": "The Cluster register's details section: cluster ID, programme cluster code, name, crop, year established, and the coordinator's name and phone."
+    },
+    {
+      "name": "csr_cluster_location_resources",
+      "label": "Cluster location and resources",
+      "description": "The Cluster register's location and resources section: woreda, GPS point, area, number of smallholders, agro-ecological zone and water source."
+    },
+    {
+      "name": "cluster_profile",
+      "label": "Cluster profile",
+      "description": "Which cluster: cluster ID, programme cluster code, name, crop and year established — without the coordinator's contact details.",
+      "fields": [
+        "Cluster.functional_record_id",
+        "Cluster.programme_cluster_code",
+        "Cluster.cluster_name",
+        "Cluster.crop",
+        "Cluster.established_year"
+      ]
+    }
+  ]
+}

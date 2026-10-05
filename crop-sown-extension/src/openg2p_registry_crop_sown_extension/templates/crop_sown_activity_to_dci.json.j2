@@ -1,12 +1,20 @@
 {#-
   One Crop Sown activity as a DCI registry record.
 
-  The top-level keys are the consent scopes: the partner API keeps only the
-  keys the Consent Manager allows (crop_season is the minimum a lender needs;
-  farmer_reference and location are more sensitive).
+  The activity reaching this template is already filtered to the partner's
+  consented data scopes (meta_data/data-scopes/: activity, crop_season,
+  measures, farmer_reference, location — named groups of CropSown.activity.*
+  fields, independent of this layout): a field outside them is null. The
+  groups below happen to mirror those scopes, but a scope is defined by its
+  fields, not by a key of this record.
+
+  measures.details is the stage's payload without the keys that belong to
+  other scopes (farmer, development agent, location): the payload repeats
+  them, and measures must not carry them.
 -#}
 {%- set a = expanded -%}
-{%- set p = a.get("payload") or {} -%}
+{%- set not_details = ["farmer_id", "fayda_fan", "da_id", "latitude", "longitude", "geo_lowest_level_value_id"] -%}
+{%- set payload = a.get("payload") -%}
 {
   "@type": "spdci-extensions-agri:CropActivity",
   "activity": {
@@ -29,7 +37,7 @@
   "measures": {
     "area_ha": {{ a.get("area_ha") | tojson }},
     "quantity_qt": {{ a.get("quantity_qt") | tojson }},
-    "details": {{ p | tojson }}
+    "details": {{ (dict(payload | dictsort | rejectattr(0, "in", not_details)) if payload is mapping else none) | tojson }}
   },
   "farmer_reference": {
     "farmer_id": {{ a.get("farmer_id") | tojson }},

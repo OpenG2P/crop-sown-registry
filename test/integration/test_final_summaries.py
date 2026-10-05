@@ -117,9 +117,11 @@ async def test_final_summaries_across_farmers(service, clean):
         config.dci_bulk_aggregate_partners = {}
         with pytest.raises(G2PRegistryException):
             controller._authorise_bulk(SimpleNamespace(sender_id="someone"), message)
-        config.dci_bulk_aggregate_partners = {"benefits": ["crop_season", "measures"]}
+        # Allow-listed scopes are data scope IDs from the registry's catalogue.
+        config.dci_bulk_aggregate_partners = {
+            "benefits": ["crop-sown-registry.crop_season", "crop-sown-registry.measures"]}
         assert controller._authorise_bulk(SimpleNamespace(sender_id="benefits"), message) == {
-            "1": ["crop_season", "measures"]}
+            "1": ["crop-sown-registry.crop_season", "crop-sown-registry.measures"]}
     finally:
         config.dci_bulk_aggregate_partners = saved
 

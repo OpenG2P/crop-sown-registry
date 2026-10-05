@@ -1,0 +1,109 @@
+{
+  "scopes": [
+    {
+      "name": "crop_season",
+      "label": "Crop season",
+      "description": "Which crop on which plot in which season: plot, crop year, season, crop, variety and cluster; for a crop season's current state also its stage, status and last activity; for a summary its type, period and whether it is final. The minimum a lender or programme needs.",
+      "fields": [
+        "CropSown.activity.context_id",
+        "CropSown.activity.plot_id",
+        "CropSown.activity.crop_year",
+        "CropSown.activity.season",
+        "CropSown.activity.crop",
+        "CropSown.activity.variety",
+        "CropSown.activity.cluster_id",
+        "CropSown.context.context_id",
+        "CropSown.context.plot_id",
+        "CropSown.context.crop_year",
+        "CropSown.context.season",
+        "CropSown.context.crop",
+        "CropSown.context.variety",
+        "CropSown.context.cluster_id",
+        "CropSown.context.stage",
+        "CropSown.context.context_status",
+        "CropSown.context.last_activity_type",
+        "CropSown.context.last_occurred_at",
+        "CropSown.context.replaces_context_id",
+        "CropSown.context.replaced_by_context_id",
+        "CropSown.aggregate.aggregate_type",
+        "CropSown.aggregate.period_key",
+        "CropSown.aggregate.period_start",
+        "CropSown.aggregate.period_end",
+        "CropSown.aggregate.custom_dimensions",
+        "CropSown.aggregate.computed_at",
+        "CropSown.aggregate.is_final",
+        "CropSown.aggregate.finalised_at"
+      ]
+    },
+    {
+      "name": "measures",
+      "label": "Crop measures",
+      "description": "What was recorded and measured: areas planned, sown and harvested, quantities, yields, sowing and harvest dates, seed type, crop condition, pest and damage reports, verification flags, the details each activity recorded, and the figures of a summary.",
+      "fields": [
+        "CropSown.activity.area_ha",
+        "CropSown.activity.quantity_qt",
+        "CropSown.activity.payload",
+        "CropSown.context.planned_area_ha",
+        "CropSown.context.planned_sowing_date",
+        "CropSown.context.expected_yield_qt_per_ha",
+        "CropSown.context.area_sown_ha",
+        "CropSown.context.sowing_date",
+        "CropSown.context.seed_type",
+        "CropSown.context.sowing_verified",
+        "CropSown.context.harvest_verified",
+        "CropSown.context.latest_growth_stage",
+        "CropSown.context.latest_crop_condition",
+        "CropSown.context.infestation_count",
+        "CropSown.context.max_infestation_severity",
+        "CropSown.context.damage_count",
+        "CropSown.context.max_loss_percent",
+        "CropSown.context.area_harvested_ha",
+        "CropSown.context.quantity_harvested_qt",
+        "CropSown.context.yield_qt_per_ha",
+        "CropSown.context.harvest_date",
+        "CropSown.context.pending_verification_count",
+        "CropSown.aggregate.aggregate_value"
+      ]
+    },
+    {
+      "name": "farmer_reference",
+      "label": "Farmer reference",
+      "description": "Whose crop it is: the farmer ID (Farmer Registry) and Fayda FAN. More sensitive: links the crop data to a person.",
+      "fields": [
+        "CropSown.activity.farmer_id",
+        "CropSown.activity.fayda_fan",
+        "CropSown.context.farmer_id",
+        "CropSown.context.fayda_fan",
+        "CropSown.aggregate.subject_id"
+      ]
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "description": "Where the crop is: administrative levels (region, zone, woreda, kebele) and, for an activity, the GPS point. More sensitive.",
+      "fields": [
+        "CropSown.activity.latitude",
+        "CropSown.activity.longitude",
+        "CropSown.activity.geo_lowest_level_value_id",
+        "CropSown.activity.geo_dimensions",
+        "CropSown.context.geo_lowest_level_value_id",
+        "CropSown.context.geo_dimensions",
+        "CropSown.aggregate.geo_dimensions"
+      ]
+    },
+    {
+      "name": "activity",
+      "label": "Activity details",
+      "description": "About each recorded activity itself: its ID, type (planned, sown, harvested, ...), when it happened and was recorded, the channel it came through and its verification status.",
+      "fields": [
+        "CropSown.activity.activity_id",
+        "CropSown.activity.activity_type",
+        "CropSown.activity.occurred_at",
+        "CropSown.activity.occurred_on_ec",
+        "CropSown.activity.recorded_at",
+        "CropSown.activity.channel",
+        "CropSown.activity.verification_status"
+      ]
+    }
+  ]
+}

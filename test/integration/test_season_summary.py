@@ -48,7 +48,7 @@ async def test_farmer_season_summary(service, clean):
 
 
 
-async def test_dci_records_use_the_registrys_consent_scopes(service, clean, database):
+async def test_dci_records_group_farmer_season_measures_location(service, clean, database):
     """Crop season state and season summary, as partners get them over DCI, keyed by farmer ID."""
     from sqlalchemy import select
 
@@ -60,14 +60,14 @@ async def test_dci_records_use_the_registrys_consent_scopes(service, clean, data
     await service.append(act("HARVESTED", 2, area_ha=1.0, quantity_qt=18), "da", "STAFF_PORTAL")
     await G2PActivityOutboxService().process_batch()
     domain = G2PActivityRegistryService().domain_service(REG)
-    scopes = {"@type", "farmer_reference", "crop_season", "measures", "location"}
+    groups = {"@type", "farmer_reference", "crop_season", "measures", "location"}
 
     async with database.connect() as conn:
         row = (await conn.execute(select(G2PActivityProjectionCropSown.__table__))).mappings().one()
     state = domain.dci_state_record({k: (v.isoformat() if hasattr(v, "isoformat") else
                                          float(v) if hasattr(v, "as_integer_ratio") and not isinstance(v, (int, bool))
                                          else v) for k, v in row.items()})
-    assert set(state) == scopes
+    assert set(state) == groups
     assert state["farmer_reference"]["farmer_id"] == BASE["farmer_id"]
     assert state["crop_season"]["stage"] == "HARVESTED" and state["measures"]["yield_qt_per_ha"] == 18.0
     assert state["location"]["woreda"]["code"] == "ET040611"
@@ -75,6 +75,6 @@ async def test_dci_records_use_the_registrys_consent_scopes(service, clean, data
     [summary] = await service.search_aggregates(SearchAggregatesPayload(register_mnemonic=REG,
                                                                         subject_id=BASE["farmer_id"]))
     record = domain.dci_aggregate_record(summary.model_dump(mode="json"))
-    assert set(record) == scopes
+    assert set(record) == groups
     assert record["crop_season"]["period_key"] == "2019|SEASON_MEHER" and record["crop_season"]["season"] == "SEASON_MEHER"
     assert record["measures"]["quantity_harvested_qt"] == 18.0

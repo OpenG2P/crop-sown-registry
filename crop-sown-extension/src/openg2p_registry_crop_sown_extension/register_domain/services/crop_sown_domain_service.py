@@ -281,15 +281,17 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
     #
     # DCI records for a crop season's current state (reg_record_type
     # spdci-extensions-agri:CropSeason) and for aggregates (...:ActivityAggregate),
-    # keyed by farmer ID. Top-level keys are this registry's consent scopes —
-    # farmer_reference, crop_season, measures, location — the same as for
-    # activities, so a partner's policy covers all three record types.
+    # keyed by farmer ID. The row each hook receives is already filtered to the
+    # partner's consented data scopes (meta_data/data-scopes/: crop_season,
+    # measures, farmer_reference, location over CropSown.context.* and
+    # CropSown.aggregate.* fields): a field outside them is null. A group whose
+    # fields are all null (not consented, or nothing recorded) renders as null.
 
     def dci_state_record(self, state: dict[str, Any]) -> dict[str, Any]:
         return {
             "@type": "spdci-extensions-agri:CropSeason",
-            "farmer_reference": {"farmer_id": state.get("farmer_id"), "fayda_fan": state.get("fayda_fan")},
-            "crop_season": {
+            "farmer_reference": _or_null({"farmer_id": state.get("farmer_id"), "fayda_fan": state.get("fayda_fan")}),
+            "crop_season": _or_null({
                 "crop_season_id": state.get("context_id"),
                 "plot_id": state.get("plot_id"),
                 "crop_year": state.get("crop_year"),
@@ -303,24 +305,24 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
                 # The crop was changed: the season this one replaced, or was replaced by.
                 "replaces_crop_season_id": state.get("replaces_context_id"),
                 "replaced_by_crop_season_id": state.get("replaced_by_context_id"),
-            },
-            "measures": {key: state.get(key) for key in (
+            }),
+            "measures": _or_null({key: state.get(key) for key in (
                 "planned_area_ha", "planned_sowing_date", "expected_yield_qt_per_ha",
                 "area_sown_ha", "sowing_date", "seed_type", "sowing_verified", "harvest_verified",
                 "latest_growth_stage", "latest_crop_condition",
                 "infestation_count", "max_infestation_severity", "damage_count", "max_loss_percent",
                 "area_harvested_ha", "quantity_harvested_qt", "yield_qt_per_ha", "harvest_date",
                 "pending_verification_count",
-            )},
-            "location": state.get("geo_dimensions"),
+            )}),
+            "location": state.get("geo_dimensions") or None,
         }
 
     def dci_aggregate_record(self, aggregate: dict[str, Any]) -> dict[str, Any]:
         custom = aggregate.get("custom_dimensions") or {}
         return {
             "@type": "spdci-extensions-agri:ActivityAggregate",
-            "farmer_reference": {"farmer_id": aggregate.get("subject_id")},
-            "crop_season": {
+            "farmer_reference": _or_null({"farmer_id": aggregate.get("subject_id")}),
+            "crop_season": _or_null({
                 "aggregate_type": aggregate.get("aggregate_type"),
                 "period_key": aggregate.get("period_key"),
                 "crop_year": custom.get("crop_year"),
@@ -329,9 +331,10 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
                 "period_end": aggregate.get("period_end"),
                 "computed_at": aggregate.get("computed_at"),
                 # Final once the season is closed: the figure a subsidy or payment can rely on.
-                "is_final": bool(aggregate.get("is_final")),
+                # Null (not false) when the partner may not see it.
+                "is_final": aggregate.get("is_final"),
                 "finalised_at": aggregate.get("finalised_at"),
-            },
+            }),
             "measures": aggregate.get("aggregate_value"),
             "location": aggregate.get("geo_dimensions") or None,
         }
@@ -430,3 +433,8 @@ async def _sample_people() -> Optional[list[dict]]:
             ))]
     except Exception:
         return None
+
+
+def _or_null(group: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """A DCI record group, or null when none of its fields has a value (e.g. not consented)."""
+    return group if any(value is not None for value in group.values()) else None
