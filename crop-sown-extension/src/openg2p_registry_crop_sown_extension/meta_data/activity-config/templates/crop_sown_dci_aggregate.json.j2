@@ -1,0 +1,24 @@
+{#- A farmer's season summary (or another aggregate) as a DCI record
+    (CropSown.json formats.dci.aggregate), keyed by farmer ID. `record` is the
+    aggregate row, already filtered to the consented data scopes
+    (CropSown.aggregate.* fields): a field outside them is null, and a group
+    with nothing consented renders as null. -#}
+{
+  "@type": {{ record_type | tojson }},
+  "farmer_reference": {{ {"farmer_id": record.subject_id} | or_null | tojson }},
+  "crop_season": {{ {
+    "aggregate_type": record.aggregate_type,
+    "period_key": record.period_key,
+    "crop_year": record.custom_dimensions.crop_year,
+    "season": record.custom_dimensions.season,
+    "period_start": record.period_start,
+    "period_end": record.period_end,
+    "computed_at": record.computed_at,
+    "is_final": record.is_final,
+    "finalised_at": record.finalised_at
+  } | or_null | tojson }},
+  {#- is_final: final once the season is closed, the figure a subsidy or payment can rely on;
+      null (not false) when the partner may not see it. #}
+  "measures": {{ record.aggregate_value | tojson }},
+  "location": {{ (record.geo_dimensions or none) | tojson }}
+}

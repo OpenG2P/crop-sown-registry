@@ -1,11 +1,10 @@
 """Crop Sown domain rules: the crop-season context, derived values, checks, the projection
 and the farmer's season summary."""
 
+import logging
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any, Optional
-
-import logging
 
 from openg2p_fastapi_common.context import dbengine
 from openg2p_registry_core.engine import get_engines
@@ -82,25 +81,10 @@ def _num(value) -> Optional[float]:
 
 
 class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
-    # A crop season is one crop on one plot in one season, for one farmer: a
-    # correction can't move an activity to another one (void and record anew).
-    context_fields = ("farmer_id", *CONTEXT_FIELDS)
-    ui_hints = {
-        "summary_fields": ["farmer_id", "plot_id", "crop", "area_ha", "quantity_qt"],
-        "context_columns": ["farmer_id", "plot_id", "crop_year", "season", "crop", "stage",
-                            "area_sown_ha", "yield_qt_per_ha"],
-        # A batch is usually one season's entries by one development agent.
-        "batch_carry_fields": ["crop_year", "season", "da_id"],
-        "search_placeholder": "Search farmer, plot, crop…",
-        "context_search_placeholder": "Search by key (plot, season, crop…)",
-    }
-    # A farmer's season summary is final once the season's window is locked
-    # (for all activity types) and its activities are processed. Plans are often
-    # made before the window, so lock from the planning start to keep it final.
-    final_on_period_lock = (FARMER_SEASON_SUMMARY,)
-    # A partner's consent may name the farmer by Fayda FAN while the search is by
-    # farmer ID: allowed when this registry's own records link the two.
-    subject_id_fields = ("fayda_fan",)
+    # Declarations (context fields, subject, UI hints, search fields, final
+    # aggregates), the DCI record templates and the plausibility rules are
+    # configuration: meta_data/activity-config/CropSown.json. The code here is
+    # the context, derived values, the projection, the season summary and samples.
 
     # --------------------------------------------------------------- context
 
@@ -111,7 +95,7 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
         return {
             "context_key": f"{plot}|{year}|{season}|{crop}",
             "context_type": "CROP_SEASON",
-            "subject_type": subject_type or ("FARMER_ID" if payload.get("farmer_id") else None),
+            "subject_type": subject_type or (self.subject_type if payload.get("farmer_id") else None),
             "subject_id": subject_id or payload.get("farmer_id"),
             "attributes": {
                 "plot_id": plot,
@@ -175,38 +159,6 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
             if area and quantity is not None:
                 payload["yield_qt_per_ha"] = round(quantity / area, 3)
         return payload
-
-    def search_text_values(self, activity_type: str, payload: dict[str, Any]) -> list[str]:
-        return [str(payload[field]) for field in ("farmer_id", "fayda_fan", "plot_id", "crop", "cluster_id")
-                if payload.get(field)]
-
-    # ------------------------------------------------------------- checks
-
-    def validate(self, activity_type: str, payload: dict[str, Any], context_activities: list) -> list[str]:
-        """Plausibility warnings against what the context already holds (never blocking)."""
-        warnings: list[str] = []
-        latest = {}
-        for activity in context_activities:
-            latest[activity.activity_type] = activity
-        planned, sown = latest.get("PLANNED"), latest.get("SOWN")
-        area = _num(payload.get("area_ha"))
-
-        if activity_type == "SOWN" and planned is not None and area and planned.area_ha:
-            if area > float(planned.area_ha) * 1.5:
-                warnings.append(f"Area sown {area} ha is more than 1.5 × the planned {float(planned.area_ha)} ha")
-        if activity_type in ("GROWTH_OBSERVED", "HARVESTED", "INFESTATION_REPORTED", "DAMAGE_REPORTED"):
-            if sown is not None and area and sown.area_ha and area > float(sown.area_ha) + 1e-9:
-                warnings.append(f"Area {area} ha exceeds the {float(sown.area_ha)} ha sown")
-        if activity_type == "HARVESTED":
-            yield_per_ha = _num(payload.get("yield_qt_per_ha"))
-            if yield_per_ha is not None and yield_per_ha > 150:
-                warnings.append(f"Yield of {yield_per_ha} qt/ha is implausibly high; check quantity and area")
-            disposed = sum(_num(payload.get(f)) or 0 for f in ("stored_qt", "sold_qt", "consumed_qt", "seed_reserved_qt"))
-            quantity = _num(payload.get("quantity_qt")) or 0
-            loss = _num(payload.get("post_harvest_loss_qt")) or 0
-            if disposed > quantity - loss + 1e-6:
-                warnings.append("Stored, sold, consumed and seed quantities add up to more than was harvested")
-        return warnings
 
     # ------------------------------------------------------ season summary
 
@@ -276,68 +228,6 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
             geo_dimensions=common_dimensions([getattr(row, "geo_dimensions", None) for row in rows]) or {},
             custom_dimensions={"crop_year": int(crop_year), "season": season},
         )
-
-    # ------------------------------------------------------------- sharing
-    #
-    # DCI records for a crop season's current state (reg_record_type
-    # spdci-extensions-agri:CropSeason) and for aggregates (...:ActivityAggregate),
-    # keyed by farmer ID. The row each hook receives is already filtered to the
-    # partner's consented data scopes (meta_data/data-scopes/: crop_season,
-    # measures, farmer_reference, location over CropSown.context.* and
-    # CropSown.aggregate.* fields): a field outside them is null. A group whose
-    # fields are all null (not consented, or nothing recorded) renders as null.
-
-    def dci_state_record(self, state: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "@type": "spdci-extensions-agri:CropSeason",
-            "farmer_reference": _or_null({"farmer_id": state.get("farmer_id"), "fayda_fan": state.get("fayda_fan")}),
-            "crop_season": _or_null({
-                "crop_season_id": state.get("context_id"),
-                "plot_id": state.get("plot_id"),
-                "crop_year": state.get("crop_year"),
-                "season": state.get("season"),
-                "crop": state.get("crop"),
-                "variety": state.get("variety"),
-                "stage": state.get("stage"),
-                "status": state.get("context_status"),
-                "last_activity_type": state.get("last_activity_type"),
-                "last_occurred_at": state.get("last_occurred_at"),
-                # The crop was changed: the season this one replaced, or was replaced by.
-                "replaces_crop_season_id": state.get("replaces_context_id"),
-                "replaced_by_crop_season_id": state.get("replaced_by_context_id"),
-            }),
-            "measures": _or_null({key: state.get(key) for key in (
-                "planned_area_ha", "planned_sowing_date", "expected_yield_qt_per_ha",
-                "area_sown_ha", "sowing_date", "seed_type", "sowing_verified", "harvest_verified",
-                "latest_growth_stage", "latest_crop_condition",
-                "infestation_count", "max_infestation_severity", "damage_count", "max_loss_percent",
-                "area_harvested_ha", "quantity_harvested_qt", "yield_qt_per_ha", "harvest_date",
-                "pending_verification_count",
-            )}),
-            "location": state.get("geo_dimensions") or None,
-        }
-
-    def dci_aggregate_record(self, aggregate: dict[str, Any]) -> dict[str, Any]:
-        custom = aggregate.get("custom_dimensions") or {}
-        return {
-            "@type": "spdci-extensions-agri:ActivityAggregate",
-            "farmer_reference": _or_null({"farmer_id": aggregate.get("subject_id")}),
-            "crop_season": _or_null({
-                "aggregate_type": aggregate.get("aggregate_type"),
-                "period_key": aggregate.get("period_key"),
-                "crop_year": custom.get("crop_year"),
-                "season": custom.get("season"),
-                "period_start": aggregate.get("period_start"),
-                "period_end": aggregate.get("period_end"),
-                "computed_at": aggregate.get("computed_at"),
-                # Final once the season is closed: the figure a subsidy or payment can rely on.
-                # Null (not false) when the partner may not see it.
-                "is_final": aggregate.get("is_final"),
-                "finalised_at": aggregate.get("finalised_at"),
-            }),
-            "measures": aggregate.get("aggregate_value"),
-            "location": aggregate.get("geo_dimensions") or None,
-        }
 
     # ---------------------------------------------------------- projection
 
@@ -434,7 +324,3 @@ async def _sample_people() -> Optional[list[dict]]:
     except Exception:
         return None
 
-
-def _or_null(group: dict[str, Any]) -> Optional[dict[str, Any]]:
-    """A DCI record group, or null when none of its fields has a value (e.g. not consented)."""
-    return group if any(value is not None for value in group.values()) else None

@@ -1,0 +1,34 @@
+{#- A crop season's current state as a DCI record (CropSown.json formats.dci.state).
+    `record` is the crop season's projection row, already filtered to the
+    partner's consented data scopes (crop_season, measures, farmer_reference,
+    location over CropSown.context.* fields): a field outside them is null. A
+    group whose fields are all null (not consented, or nothing recorded)
+    renders as null (or_null). -#}
+{
+  "@type": {{ record_type | tojson }},
+  "farmer_reference": {{ record | pick("farmer_id", "fayda_fan") | or_null | tojson }},
+  "crop_season": {{ {
+    "crop_season_id": record.context_id,
+    "plot_id": record.plot_id,
+    "crop_year": record.crop_year,
+    "season": record.season,
+    "crop": record.crop,
+    "variety": record.variety,
+    "stage": record.stage,
+    "status": record.context_status,
+    "last_activity_type": record.last_activity_type,
+    "last_occurred_at": record.last_occurred_at,
+    "replaces_crop_season_id": record.replaces_context_id,
+    "replaced_by_crop_season_id": record.replaced_by_context_id
+  } | or_null | tojson }},
+  {#- replaces/replaced_by: the crop was changed, the season this one replaced or was replaced by. #}
+  "measures": {{ record | pick(
+    "planned_area_ha", "planned_sowing_date", "expected_yield_qt_per_ha",
+    "area_sown_ha", "sowing_date", "seed_type", "sowing_verified", "harvest_verified",
+    "latest_growth_stage", "latest_crop_condition",
+    "infestation_count", "max_infestation_severity", "damage_count", "max_loss_percent",
+    "area_harvested_ha", "quantity_harvested_qt", "yield_qt_per_ha", "harvest_date",
+    "pending_verification_count"
+  ) | or_null | tojson }},
+  "location": {{ (record.geo_dimensions or none) | tojson }}
+}

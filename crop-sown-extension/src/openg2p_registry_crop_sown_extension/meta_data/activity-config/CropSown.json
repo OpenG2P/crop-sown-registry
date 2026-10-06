@@ -1,0 +1,75 @@
+{
+  "description": "Crop Sown register: a crop season is one crop on one plot in one season, for one farmer. Read by the registry platform (see g2p_activity_register_config); the domain service keeps the context, projection, season summary, derived values and samples in code.",
+  "register_mnemonic": "CropSown",
+  "context_fields": ["farmer_id", "plot_id", "crop_year", "season", "crop"],
+  "subject": {
+    "subject_type": "FARMER_ID",
+    "subject_id_fields": ["fayda_fan"]
+  },
+  "ui_hints": {
+    "summary_fields": ["farmer_id", "plot_id", "crop", "area_ha", "quantity_qt"],
+    "context_columns": ["farmer_id", "plot_id", "crop_year", "season", "crop", "stage", "area_sown_ha", "yield_qt_per_ha"],
+    "batch_carry_fields": ["crop_year", "season", "da_id"],
+    "search_placeholder": "Search farmer, plot, crop…",
+    "context_search_placeholder": "Search by key (plot, season, crop…)"
+  },
+  "final_on_period_lock": ["FARMER_SEASON_SUMMARY"],
+  "search_fields": ["farmer_id", "fayda_fan", "plot_id", "crop", "cluster_id"],
+  "formats": {
+    "dci": {
+      "state": {
+        "record_type": "spdci-extensions-agri:CropSeason",
+        "template": "templates/crop_sown_dci_state.json.j2"
+      },
+      "aggregate": {
+        "record_type": "spdci-extensions-agri:ActivityAggregate",
+        "template": "templates/crop_sown_dci_aggregate.json.j2"
+      }
+    }
+  },
+  "rules": [
+    {
+      "id": "sown_area_within_plan",
+      "description": "The area sown is at most 1.5 times the area planned.",
+      "applies_to": ["SOWN"],
+      "when": {"and": [{"var": "payload.area_ha"}, {"var": "latest.PLANNED.area_ha"}]},
+      "check": {"<=": [{"var": "payload.area_ha"}, {"*": [{"var": "latest.PLANNED.area_ha"}, 1.5]}]},
+      "message": "Area sown {{ payload.area_ha | float }} ha is more than 1.5 × the planned {{ latest.PLANNED.area_ha | float }} ha",
+      "severity": "warn"
+    },
+    {
+      "id": "area_within_sown",
+      "description": "Observations, reports and the harvest cover at most the area sown.",
+      "applies_to": ["GROWTH_OBSERVED", "HARVESTED", "INFESTATION_REPORTED", "DAMAGE_REPORTED"],
+      "when": {"and": [{"var": "payload.area_ha"}, {"var": "latest.SOWN.area_ha"}]},
+      "check": {"<=": [{"var": "payload.area_ha"}, {"+": [{"var": "latest.SOWN.area_ha"}, 1e-9]}]},
+      "message": "Area {{ payload.area_ha | float }} ha exceeds the {{ latest.SOWN.area_ha | float }} ha sown",
+      "severity": "warn"
+    },
+    {
+      "id": "yield_plausible",
+      "description": "A yield above 150 qt/ha is implausible.",
+      "applies_to": ["HARVESTED"],
+      "check": {"<=": [{"var": "payload.yield_qt_per_ha"}, 150]},
+      "message": "Yield of {{ payload.yield_qt_per_ha | float }} qt/ha is implausibly high; check quantity and area",
+      "severity": "warn"
+    },
+    {
+      "id": "harvest_disposal_within_quantity",
+      "description": "Stored, sold, consumed and seed quantities add up to at most the harvest less the post-harvest loss.",
+      "applies_to": ["HARVESTED"],
+      "check": {"<=": [
+        {"+": [
+          {"var": ["payload.stored_qt", 0]}, {"var": ["payload.sold_qt", 0]},
+          {"var": ["payload.consumed_qt", 0]}, {"var": ["payload.seed_reserved_qt", 0]}
+        ]},
+        {"+": [
+          {"-": [{"var": ["payload.quantity_qt", 0]}, {"var": ["payload.post_harvest_loss_qt", 0]}]},
+          1e-6
+        ]}
+      ]},
+      "message": "Stored, sold, consumed and seed quantities add up to more than was harvested",
+      "severity": "warn"
+    }
+  ]
+}
