@@ -34,7 +34,7 @@ maintainers:
 dependencies:
   - name: openg2p-registry
     alias: registry
-    version: 0.0.0-develop.604
+    version: 0.0.0-develop.608
     repository: https://openg2p.github.io/openg2p-helm
 
 annotations:

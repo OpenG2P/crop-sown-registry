@@ -10,7 +10,7 @@
 # dependency in helm/openg2p-crop-sown-registry/Chart.yaml (scripts/bump-rp-version.sh).
 #
 # Build context = repo root.
-ARG RP_VERSION=0.0.0-develop.604
+ARG RP_VERSION=0.0.0-develop.608
 FROM openg2p/openg2p-registry-staff-api:${RP_VERSION}
 
 ENV REGISTRY_EXTENSION_MODULE=openg2p_registry_crop_sown_extension
