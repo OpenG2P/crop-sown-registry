@@ -11,23 +11,16 @@
 - variable: registry.celeryWorker.envVars.REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_ENABLED
   label: "Pull submissions from ODK Central"
   description: >-
-    Pull crop-sowing form submissions from ODK Central into the activity
-    register. Also activate the form in the register's Settings (ODK project and
-    form ID) and create the ODK credentials Secret.
+    Pull crop-sowing form submissions from the ODK Central installed with
+    commons-services into the activity register. Also activate the form in the
+    register's Settings (ODK project and form ID) and create the ODK credentials
+    Secret.
   type: enum
   options:
     - "false"
     - "true"
   default: "false"
   group: "Crop Sown Registry"
-
-- variable: registry.celeryWorker.envVars.REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_BASE_URL
-  label: "ODK Central URL"
-  description: "ODK Central backend the worker pulls submissions from."
-  type: string
-  default: "http://commons-services-odk-central-backend"
-  group: "Crop Sown Registry"
-  show_if: "registry.celeryWorker.envVars.REGISTRY_CELERY_WORKERS_ACTIVITY_ODK_ENABLED=true"
 
 # Sample data is two switches: registry.dbSeed.loadSampleData (inherited "Load
 # Sample Data" question: the sample clusters) and this one (the sample crop
