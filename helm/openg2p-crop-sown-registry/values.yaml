@@ -80,6 +80,10 @@ registry:
 
   iamRegister:
     applicationDescription: "Crop Sown Registry"
+    # Rancher may skip Helm hooks, and a failing post-install hook fails the
+    # whole release: run IAM registration as a regular Job (same as FR and
+    # commons). A parent `null` cannot clear the subchart's hook annotations.
+    runAsHook: false
 
   # Functional-ID pools, one per register that mints IDs: the Cluster register
   # (pool = register mnemonic in lowercase; the extension adds the CL- prefix, so
