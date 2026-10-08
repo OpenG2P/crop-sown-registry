@@ -120,7 +120,13 @@ class G2PActivityDomainServiceCropSown(G2PActivityDomainService):
         people, and the Cluster register's sample clusters (loaded by db-seed,
         which runs before the Job).
         """
-        people = await _sample_people()
+        try:
+            people = await _sample_people()
+        except MasterDataError as error:
+            raise G2PRegistryException(
+                code=G2PRegistryErrorCodes.INVALID_REQUEST.value[1],
+                message=f"Master Data's sample people could not be read: {error}",
+            ) from None
         if not people:
             raise G2PRegistryException(
                 code=G2PRegistryErrorCodes.INVALID_REQUEST.value[1],
@@ -304,14 +310,11 @@ async def _sample_people() -> Optional[list[dict]]:
 
     Read through MDS's ``/samples/get_individuals`` with the platform's Master
     Data client (master_data_read_mode = "api", the default), or from MDS's
-    g2p_sample_individuals table ("db", the rollback).
+    g2p_sample_individuals table ("db", the rollback). A failed API call (e.g. no
+    token from Keycloak) raises MasterDataError, so the caller reports the real cause.
     """
     if master_data_read_mode() == "api":
-        try:
-            people = await get_master_data_client().sample_individuals()
-        except MasterDataError as error:
-            _logger.info("Sample people could not be read from Master Data: %s", error)
-            return None
+        people = await get_master_data_client().sample_individuals()
         return [{k: p.get(k) for k in ("individual_id", "age", "national_id", "geo_pcode")} for p in people]
     engine = get_engines().get("db_engine_master_data")
     if engine is None:
