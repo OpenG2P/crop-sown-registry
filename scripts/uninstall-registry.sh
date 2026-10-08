@@ -42,6 +42,13 @@
 #   * code lists and geography in Master Data, which other registries use;
 #   * ODK Central projects/forms and the ODK credentials Secret, if created by hand.
 #
+# Refuses to start while a Helm operation on the release is still running
+# (status pending-install / pending-upgrade / pending-rollback, or a Rancher
+# helm-operation-* pod in cattle-system targeting it): hook Jobs that operation
+# creates after the job cleanup would be left behind. Wait, or pass --force.
+# After the job cleanup it re-checks for late hook Jobs/Pods SWEEP_CHECKS times
+# (env, default 3), SWEEP_INTERVAL seconds apart (env, default 10).
+#
 # Requires: kubectl (cluster admin), helm, bash 4+.
 #
 # USAGE:
@@ -54,6 +61,7 @@
 #       [--keep-iam]                  (do NOT delete this registry's IAM rows)
 #       [--keep-pvs]                  (delete PVCs but not PVs)
 #       [--dry-run]                   (print actions, change nothing)
+#       [--force]                     (run even while a Helm operation on the release is in progress)
 #       [--yes]                       (skip interactive confirmation)
 #
 # EXAMPLES:
@@ -78,6 +86,10 @@ KEEP_IAM=false
 KEEP_PVS=false
 DRY_RUN=false
 ASSUME_YES=false
+FORCE=false
+# Late-hook sweep after the job cleanup (env-overridable).
+SWEEP_CHECKS="${SWEEP_CHECKS:-3}"
+SWEEP_INTERVAL="${SWEEP_INTERVAL:-10}"
 
 # ---------- cli ----------
 usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d'; exit 1; }
@@ -93,6 +105,7 @@ while [[ $# -gt 0 ]]; do
     --keep-pvs)          KEEP_PVS=true;          shift ;;
     --dry-run)           DRY_RUN=true;           shift ;;
     --yes|-y)            ASSUME_YES=true;        shift ;;
+    --force)             FORCE=true;             shift ;;
     -h|--help)           usage ;;
     *) echo "Unknown argument: $1"; usage ;;
   esac
@@ -100,6 +113,8 @@ done
 
 [[ -z "$NAMESPACE" ]] && { echo "ERROR: --namespace is required"; exit 1; }
 [[ -z "$POSTGRES_NAMESPACE" ]] && POSTGRES_NAMESPACE="$NAMESPACE"
+[[ "$SWEEP_CHECKS" =~ ^[0-9]+$ && "$SWEEP_INTERVAL" =~ ^[0-9]+$ ]] \
+  || { echo "ERROR: SWEEP_CHECKS and SWEEP_INTERVAL must be non-negative integers"; exit 1; }
 
 # ---------- derived: DB / user names (templated exactly like values.yaml) ----------
 # values.yaml:
@@ -188,6 +203,102 @@ kexec_psql_capture() {
     | tr -d '[:space:]' || true
 }
 
+# ---------- in-progress Helm operation guard ----------
+# Uninstalling while `helm install/upgrade` of this release is still running its
+# hooks races it: the job cleanup runs, then the still-running operation creates
+# the next hook Job (db-seed, ...), which nobody deletes and whose pod retries
+# forever. Rancher runs that as `helm install --timeout=10m0s` in a cattle-system
+# helm-operation-* pod, so check Helm's own status AND those pods. Returns 0 (and
+# prints what is running) when an operation is in progress.
+helm_operation_in_progress() {
+  local busy=1 status ops
+  status=$(helm -n "$NAMESPACE" status "$RELEASE" -o json 2>/dev/null \
+    | jq -r '.info.status // empty' 2>/dev/null || true)
+  case "$status" in
+    pending-install|pending-upgrade|pending-rollback)
+      _red "  Helm release '$RELEASE' is in status '$status' — an operation on it is still running"
+      busy=0 ;;
+  esac
+  # Best effort: if cattle-system is absent or not readable, this finds nothing.
+  # Matches Running helm-operation-* pods whose container command/args carry
+  # --namespace=NS (or -n NS / --namespace NS) and the release name as a token.
+  ops=$(kubectl -n cattle-system get pod -o json 2>/dev/null \
+    | jq -r --arg ns "$NAMESPACE" --arg rel "$RELEASE" '
+        .items[]
+        | select(.metadata.name | startswith("helm-operation-"))
+        | select(.status.phase == "Running")
+        | ([(.spec.containers // [])[] | (.command // []) + (.args // [])] | add // []) as $argv
+        | ([$argv[] | splits("[\\s=\"\\x27]+")] | map(select(. != ""))) as $t
+        | select(any(range(0; ($t | length) - 1); ($t[.] == "--namespace" or $t[.] == "-n") and $t[. + 1] == $ns))
+        | select(any($t[]; . == $rel))
+        | "\(.metadata.name): \($argv | join(" ") | .[0:300])"' 2>/dev/null || true)
+  if [[ -n "$ops" ]]; then
+    _red "  Rancher Helm operation(s) still running in cattle-system for '$RELEASE' (namespace '$NAMESPACE'):"
+    printf '%s\n' "$ops" | sed 's/^/    /'
+    busy=0
+  fi
+  return "$busy"
+}
+
+# ---------- late-hook sweep ----------
+# This release's Jobs/Pods still present (and not already terminating): Jobs and
+# Pods by the instance label, plus Jobs named "<release>-*" (hook Jobs without the
+# standard labels). Pods owned by something other than a Job (e.g. a ReplicaSet)
+# are left out — deleting them would only churn a controller.
+late_hook_objects() {
+  {
+    kubectl -n "$NAMESPACE" get job,pod -l "app.kubernetes.io/instance=$RELEASE" -o json 2>/dev/null \
+      | jq -r '.items[]
+          | select(.metadata.deletionTimestamp == null)
+          | select(.kind == "Job" or ((.metadata.ownerReferences // []) | all(.kind == "Job")))
+          | "\(.kind | ascii_downcase)/\(.metadata.name)"' 2>/dev/null || true
+    kubectl -n "$NAMESPACE" get job -o json 2>/dev/null \
+      | jq -r --arg p "${RELEASE}-" '.items[]
+          | select(.metadata.deletionTimestamp == null)
+          | select(.metadata.name | startswith($p))
+          | "job/\(.metadata.name)"' 2>/dev/null || true
+  } | sort -u
+}
+
+# Re-check a few times after the job cleanup and delete late arrivals: a Helm
+# operation still running hooks (under --force, or one the guard could not see)
+# creates the next hook Job AFTER the cleanup, and it would otherwise be left with
+# its pod retrying forever. Runs before the DB drop so such pods are gone first.
+late_hook_sweep() {
+  local i found total=0 last_found=false
+  if [[ "$DRY_RUN" == true ]]; then
+    echo "  late-hook sweep: would re-check ${SWEEP_CHECKS}x, ${SWEEP_INTERVAL}s apart, and delete any Jobs/Pods of '$RELEASE' that appear"
+    found=$(late_hook_objects)
+    if [[ -n "$found" ]]; then
+      echo "  present now (deleted by the cleanup above, or by the sweep if they reappear):"
+      printf '%s\n' "$found" | sed 's/^/    /'
+    fi
+    return 0
+  fi
+  for ((i = 1; i <= SWEEP_CHECKS; i++)); do
+    sleep "$SWEEP_INTERVAL"
+    found=$(late_hook_objects)
+    if [[ -z "$found" ]]; then
+      echo "  late-hook sweep check $i/$SWEEP_CHECKS: nothing new"
+      last_found=false
+      continue
+    fi
+    _yellow "  late-hook sweep check $i/$SWEEP_CHECKS: found"
+    printf '%s\n' "$found" | sed 's/^/    /'
+    total=$((total + $(grep -c . <<<"$found")))
+    last_found=true
+    run "kubectl -n '$NAMESPACE' delete $(tr '\n' ' ' <<<"$found") --ignore-not-found --cascade=foreground --wait=true --timeout=2m"
+  done
+  if (( total > 0 )); then
+    _yellow "  late-hook sweep deleted $total object(s) — a Helm operation was still creating hooks"
+    if [[ "$last_found" == true ]]; then
+      _yellow "  (found on the last check — more may follow; check 'kubectl -n cattle-system get pod | grep helm-operation' and re-run)"
+    fi
+  else
+    _green "  late-hook sweep: no late Jobs/Pods"
+  fi
+}
+
 # ---------- pre-flight ----------
 _blue "==> Pre-flight checks"
 
@@ -234,6 +345,19 @@ if helm -n "$NAMESPACE" status "$RELEASE" >/dev/null 2>&1; then
 else
   _yellow "  Helm release '$RELEASE' not found — will skip helm uninstall step"
   HELM_RELEASE_EXISTS=false
+fi
+
+# Refuse to race an in-progress install/upgrade/rollback (see helm_operation_in_progress).
+if helm_operation_in_progress; then
+  if [[ "$FORCE" == true ]]; then
+    _yellow "  --force: continuing anyway; hook Jobs it creates later are removed only if the late-hook sweep sees them"
+  else
+    _red "  Refusing to uninstall '$RELEASE' while a Helm operation on it is in progress."
+    _red "  Wait for it to finish (helm status no longer pending-*, helm-operation pod gone), then re-run — or pass --force."
+    exit 2
+  fi
+else
+  _green "  No Helm operation in progress for '$RELEASE'"
 fi
 
 # ---------- show the blast radius ----------
@@ -331,6 +455,10 @@ if [[ "$NAMESPACE_EXISTS" == true ]]; then
   run "kubectl -n '$NAMESPACE' delete job -l 'app.kubernetes.io/instance=$RELEASE' --ignore-not-found --wait=true --timeout=2m"
   # Orphan pods (completed/failed) that a Job left behind after TTL etc.
   run "kubectl -n '$NAMESPACE' delete pod -l 'app.kubernetes.io/instance=$RELEASE' --ignore-not-found --field-selector=status.phase!=Running"
+
+  # Late-hook sweep: catch hook Jobs/Pods a still-running Helm operation created
+  # after the deletes above (see late_hook_sweep).
+  late_hook_sweep
 else
   echo "  (skipped — namespace '$NAMESPACE' not present)"
 fi
