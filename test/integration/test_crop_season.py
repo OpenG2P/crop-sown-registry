@@ -106,16 +106,16 @@ async def test_work_list_and_indicators(service, clean):
 
     await service.append(act("PLANNED", 150, area_ha=1.0), "da", "STAFF_PORTAL")
     await service.append(act("SOWN", 120, area_ha=1.0, seed_type="SEED_IMPROVED"), "da", "STAFF_PORTAL")
-    other = {"plot_id": "LND-9", "crop": "CROP_WHEAT"}
+    other = {"plot_id": "LND-9", "crop": "CROP_BREAD_WHEAT"}
     await service.append(act("PLANNED", 100, area_ha=2.0, **other), "da", "STAFF_PORTAL")
     await service.append(act("SOWN", 95, area_ha=2.0, seed_type="SEED_LOCAL", **other), "da", "STAFF_PORTAL")
 
     items, _ = await service.work_list(WorkListPayload(register_mnemonic=REG, activity_type="HARVESTED"), None)
     assert {(i.context_key, i.due_status) for i in items} == {
-        ("LND-7781|2019|SEASON_MEHER|CROP_TEFF", "DUE"), ("LND-9|2019|SEASON_MEHER|CROP_WHEAT", "DUE")}
+        ("LND-7781|2019|SEASON_MEHER|CROP_TEFF", "DUE"), ("LND-9|2019|SEASON_MEHER|CROP_BREAD_WHEAT", "DUE")}
 
     area = await G2PActivityIndicatorService().compute(REG, "SOWN_AREA_BY_CROP")
-    assert {r["crop"]: r["value"] for r in area.rows} == {"CROP_TEFF": 1.0, "CROP_WHEAT": 2.0}
+    assert {r["crop"]: r["value"] for r in area.rows} == {"CROP_TEFF": 1.0, "CROP_BREAD_WHEAT": 2.0}
     farmers = await G2PActivityIndicatorService().compute(REG, "FARMERS_REPORTING")
     assert farmers.rows == [{"crop_year": 2019, "season": "SEASON_MEHER", "value": 1}]
 

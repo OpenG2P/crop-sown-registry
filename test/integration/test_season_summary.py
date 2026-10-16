@@ -25,7 +25,7 @@ async def test_farmer_season_summary(service, clean):
     await service.append(act("PLANNED", 150, area_ha=1.0), "da", "STAFF_PORTAL")
     await service.append(act("SOWN", 120, area_ha=1.0, seed_type="SEED_IMPROVED"), "da", "STAFF_PORTAL")
     await service.append(act("HARVESTED", 2, area_ha=1.0, quantity_qt=18), "da", "STAFF_PORTAL")
-    wheat = {"plot_id": "LND-9", "crop": "CROP_WHEAT"}
+    wheat = {"plot_id": "LND-9", "crop": "CROP_BREAD_WHEAT"}
     await service.append(act("PLANNED", 100, area_ha=2.0, **wheat), "da", "STAFF_PORTAL")
     await service.append(act("SOWN", 95, area_ha=2.0, seed_type="SEED_LOCAL", **wheat), "da", "STAFF_PORTAL")
     await G2PActivityOutboxService().process_batch()
@@ -44,7 +44,7 @@ async def test_farmer_season_summary(service, clean):
     assert value["area_sown_ha"] == 3.0 and value["quantity_harvested_qt"] == 18.0
     assert value["yield_qt_per_ha"] == 18.0
     assert value["by_crop"]["CROP_TEFF"]["yield_qt_per_ha"] == 18.0
-    assert value["by_crop"]["CROP_WHEAT"]["area_harvested_ha"] == 0.0
+    assert value["by_crop"]["CROP_BREAD_WHEAT"]["area_harvested_ha"] == 0.0
 
 
 

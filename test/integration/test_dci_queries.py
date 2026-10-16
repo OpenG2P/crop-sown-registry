@@ -53,10 +53,10 @@ async def _sow(service, plot, crop, area, season="SEASON_MEHER", crop_year=2019)
 
 async def test_wheat_area_sown_this_season(service, clean):
     pytest.importorskip("openg2p_registry_partner_api")
-    await _sow(service, "LAND-0042-1", "CROP_WHEAT", 1.5)
-    await _sow(service, "LAND-0042-2", "CROP_WHEAT", 0.5)
+    await _sow(service, "LAND-0042-1", "CROP_BREAD_WHEAT", 1.5)
+    await _sow(service, "LAND-0042-2", "CROP_BREAD_WHEAT", 0.5)
     await _sow(service, "LAND-0042-3", "CROP_TEFF", 2.0)
-    await _sow(service, "LAND-0042-1", "CROP_WHEAT", 0.7, season="SEASON_BELG", crop_year=2018)
+    await _sow(service, "LAND-0042-1", "CROP_BREAD_WHEAT", 0.7, season="SEASON_BELG", crop_year=2018)
     await G2PActivityOutboxService().process_batch()
 
     dci, helper, DciSearchCriteria = _dci()
@@ -69,13 +69,13 @@ async def test_wheat_area_sown_this_season(service, clean):
          "season": "SEASON_MEHER"}))
     records, total = await dci._aggregate_search(REG, register_id, subject, filters, 1, 10)
     assert total == 1
-    assert records[0]["measures"]["by_crop"]["CROP_WHEAT"]["area_sown_ha"] == 2.0
+    assert records[0]["measures"]["by_crop"]["CROP_BREAD_WHEAT"]["area_sown_ha"] == 2.0
     assert records[0]["measures"]["area_sown_ha"] == 4.0
 
     # The crop seasons themselves: the farmer's wheat this season, one per plot.
     subject, filters = helper.parse_subject_query(criteria(
         DciSearchCriteria, "spdci-extensions-agri:CropSeason",
-        {"subject_id": FARMER, "crop_year": 2019, "season": "SEASON_MEHER", "crop": "CROP_WHEAT"}))
+        {"subject_id": FARMER, "crop_year": 2019, "season": "SEASON_MEHER", "crop": "CROP_BREAD_WHEAT"}))
     seasons, total = await dci._state_search(REG, register_id, "CROP_SEASON", subject, filters, 1, 10)
     assert total == 2
     assert sum(s["measures"]["area_sown_ha"] for s in seasons) == 2.0
@@ -93,9 +93,9 @@ async def test_wheat_area_sown_this_season(service, clean):
 
 async def test_farmer_activities_filtered(service, clean):
     pytest.importorskip("openg2p_registry_partner_api")
-    await _sow(service, "LAND-0042-1", "CROP_WHEAT", 1.5)
+    await _sow(service, "LAND-0042-1", "CROP_BREAD_WHEAT", 1.5)
     await _sow(service, "LAND-0042-3", "CROP_TEFF", 2.0)
-    await _sow(service, "LAND-0099-1", "CROP_WHEAT", 1.0)  # another plot, same farmer
+    await _sow(service, "LAND-0099-1", "CROP_BREAD_WHEAT", 1.0)  # another plot, same farmer
 
     dci, helper, DciSearchCriteria = _dci()
     from openg2p_registry_core.services import G2PActivityRegistryService
@@ -106,7 +106,7 @@ async def test_farmer_activities_filtered(service, clean):
     since = (datetime.utcnow() - timedelta(days=35)).isoformat()
     subject, filters = helper.parse_subject_query(criteria(
         DciSearchCriteria, "spdci-extensions-agri:CropActivity",
-        {"subject_id": FARMER, "activity_type": "SOWN", "crop": "CROP_WHEAT", "occurred_at": {"$gte": since}}))
+        {"subject_id": FARMER, "activity_type": "SOWN", "crop": "CROP_BREAD_WHEAT", "occurred_at": {"$gte": since}}))
     query = DciQueryResult(filter_conditions=[
         model.subject_id == subject, *helper.translate_filters(filters, _plain_columns(model, {"search_text"}))])
     rows, total = await dci._activity_search(model, query, 1, 10, None)
@@ -124,7 +124,7 @@ async def test_consent_subject_must_be_the_farmer_searched(service, clean):
     pytest.importorskip("openg2p_registry_partner_api")
     from openg2p_registry_core.errors import G2PRegistryException
 
-    await _sow(service, "LAND-0042-1", "CROP_WHEAT", 1.0)
+    await _sow(service, "LAND-0042-1", "CROP_BREAD_WHEAT", 1.0)
     # The same farmer's FAN, recorded on one of their activities.
     await service.append(act("PLANNED", 40, plot_id="LAND-0042-9", crop="CROP_TEFF", area_ha=1.0,
                              fayda_fan="123456789012"), "da", "STAFF_PORTAL")

@@ -19,7 +19,7 @@ WINDOW = (date(2026, 3, 10), date(2026, 9, 10))
 
 def act(activity_type, when, farmer="FR-0051", plot="LAND-0051-1", **payload):
     return ActivityInput(register_mnemonic=REG, activity_type=activity_type, occurred_at=datetime.fromisoformat(when),
-                         payload={**BELG, "farmer_id": farmer, "plot_id": plot, "crop": "CROP_WHEAT", **payload})
+                         payload={**BELG, "farmer_id": farmer, "plot_id": plot, "crop": "CROP_BREAD_WHEAT", **payload})
 
 
 async def _season(service, farmer, plot, planned_on="2026-03-15"):

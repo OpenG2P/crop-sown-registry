@@ -28,7 +28,7 @@ REGISTER = "CropSown"
 # Crop, its usual variety, and a plausible yield (qt/ha), by farmer.
 CROPS = [
     ("CROP_TEFF", "VAR_TEFF_QUNCHO", 18),
-    ("CROP_WHEAT", "VAR_WHEAT_KAKABA", 30),
+    ("CROP_BREAD_WHEAT", "VAR_WHEAT_KAKABA", 30),
     ("CROP_MAIZE", "VAR_MAIZE_BH661", 40),
     ("CROP_SORGHUM", "VAR_SORGHUM_MELKAM", 25),
     ("CROP_BARLEY", "VAR_BARLEY_HB1307", 22),

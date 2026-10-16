@@ -52,7 +52,7 @@ CLUSTERS = [
         "functional_record_id": "CL-5863027194",
         "programme_cluster_code": "CL-ET0101-001",
         "cluster_name": "Tahtay Adiyabo wheat cluster",
-        "crop": "CROP_WHEAT",
+        "crop": "CROP_BREAD_WHEAT",
         "geo_lowest_level_value_id": "ET010101",  # Tahtay Adiyabo, Tigray
         "agro_ecological_zone": "AEZ_KOLLA",
         "water_source": "WS_IRRIGATION_SURFACE",

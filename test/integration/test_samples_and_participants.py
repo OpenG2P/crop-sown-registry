@@ -20,7 +20,7 @@ BASE = {"farmer_id": "FR-0001", "plot_id": "LAND-0001-1", "crop_year": 2019, "se
         "crop": "CROP_TEFF", "geo_lowest_level_value_id": "ET010101"}
 # Generated Cluster IDs (pool "cluster", CL- prefix); the programme's codes are programme_cluster_code.
 CLUSTERS = (("CL-4729318560", "CL-ET0406-001", "CROP_TEFF", "ET040611"),
-            ("CL-5863027194", "CL-ET0101-001", "CROP_WHEAT", "ET010101"))
+            ("CL-5863027194", "CL-ET0101-001", "CROP_BREAD_WHEAT", "ET010101"))
 CLUSTER_IDS = tuple(c[0] for c in CLUSTERS)
 WHEAT_CLUSTER = "CL-5863027194"  # in Tahtay Adiyabo (ET010101)
 
@@ -75,7 +75,7 @@ async def test_participants_are_typed_and_searchable(service, clean, clusters):
 async def test_changed_crop_replaces_its_season(service, clean, database):
     teff, _ = await service.append(act("PLANNED", 30, area_ha=1.0), "da-01", "STAFF_PORTAL")
     wheat, _ = await service.append(
-        act("PLANNED", 20, area_ha=1.0, crop="CROP_WHEAT", replaces_crop_season_id=teff.context_id),
+        act("PLANNED", 20, area_ha=1.0, crop="CROP_BREAD_WHEAT", replaces_crop_season_id=teff.context_id),
         "da-01", "STAFF_PORTAL")
     async with database.connect() as conn:
         result = await conn.execute(text(
@@ -98,7 +98,7 @@ async def test_samples_load_once_from_master_data_people(service, clean, databas
     async with sessions() as session:
         session.add(G2PRegisterCluster(
             functional_record_id=WHEAT_CLUSTER, programme_cluster_code="CL-ET0101-001",
-            cluster_name="Tahtay Adiyabo wheat cluster", crop="CROP_WHEAT", geo_lowest_level_value_id="ET010101", created_by="test", created_at=datetime(2026, 9, 26),
+            cluster_name="Tahtay Adiyabo wheat cluster", crop="CROP_BREAD_WHEAT", geo_lowest_level_value_id="ET010101", created_by="test", created_at=datetime(2026, 9, 26),
             last_approved_at=datetime(2026, 9, 26), last_approved_by="test",
         ))
         await session.commit()
@@ -139,7 +139,7 @@ async def test_correction_cannot_change_the_crop_season(service, clean):
     sown, _ = await service.append(act("SOWN", 20, area_ha=1.0, seed_type="SEED_LOCAL"), "da-01", "STAFF_PORTAL")
     with pytest.raises(G2PRegistryException) as info:
         await service.supersede(REG, sown.activity_id, "wrong crop", "da-01", "STAFF_PORTAL",
-                                payload={**sown.payload, "crop": "CROP_WHEAT"})
+                                payload={**sown.payload, "crop": "CROP_BREAD_WHEAT"})
     assert "crop" in info.value.message
     fixed = await service.supersede(REG, sown.activity_id, "area re-measured", "da-01", "STAFF_PORTAL",
                                     payload={**sown.payload, "area_ha": 1.2})
