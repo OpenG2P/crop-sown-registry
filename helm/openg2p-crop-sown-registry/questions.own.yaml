@@ -12,9 +12,10 @@
   label: "Pull submissions from ODK Central"
   description: >-
     Pull crop-sowing form submissions from the ODK Central installed with
-    commons-services into the activity register. Also activate the form in the
-    register's Settings (ODK project and form ID) and create the ODK credentials
-    Secret.
+    commons-services into the activity register, every five minutes. Also
+    create the ODK credentials Secret and activate the form mapping in the
+    registry database (ODK project ID); there is no screen for it yet. Steps:
+    Crop Sown Registry docs, "Collecting sowings with ODK Central".
   type: enum
   options:
     - "false"
