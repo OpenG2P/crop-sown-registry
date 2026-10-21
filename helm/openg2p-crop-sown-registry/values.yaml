@@ -8,6 +8,12 @@
 # Everything not set here is inherited from openg2p-registry.
 
 global:
+  # DCI identifier types a partner may search by → the subject ID types consents
+  # use (the country's SUBJECT_ID_TYPE list). Used when a search carries no
+  # consent and the registry asks its Consent Manager to find one. DCI calls
+  # the national ID "UIN"; FARMER_ID is the same in both.
+  consentSubjectIdTypes:
+    UIN: FAYDA_FAN
   baseDomain: '{{ .Release.Namespace }}.openg2p.org'
   registryVariant: 'crop-sown-registry'
   registryHostname: '{{ .Release.Name }}.{{ tpl .Values.global.baseDomain $ }}'
