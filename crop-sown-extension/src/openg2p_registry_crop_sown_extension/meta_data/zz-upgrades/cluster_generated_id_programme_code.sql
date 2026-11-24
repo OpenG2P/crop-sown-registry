@@ -79,3 +79,13 @@ UPDATE "public"."g2p_intake_form_definitions"
    SET form_description = 'Registers a new farmer cluster: programme cluster code, name, crop, coordinator, woreda and resources. The Cluster ID is generated on approval.'
  WHERE form_id = 'c5000000-0000-4000-8000-0000000c0011'
    AND form_description = 'Registers a new farmer cluster: code, name, crop, coordinator, woreda and resources.';
+
+-- 6. The Cluster ID cannot be typed. "section-editable": true on the Cluster
+--    section made every widget in it editable, overriding the Cluster ID's
+--    "widget-readonly": true. Without the flag each widget's own setting holds.
+--    (Not set to false: the staff API refuses change requests for a section
+--    marked "section-editable": false.)
+UPDATE "public"."g2p_register_sections"
+   SET section_ui_schema = section_ui_schema - 'section-editable'
+ WHERE section_id = 'cluster_cluster_details_section_01'
+   AND section_ui_schema ? 'section-editable';

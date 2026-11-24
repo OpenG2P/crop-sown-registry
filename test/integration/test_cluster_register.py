@@ -116,6 +116,8 @@ async def test_cluster_register_is_seeded(database):
         assert bound["geo_lowest_level_value_id"]["widget"] == "geo-hierarchy"
         # Staff never type the Cluster ID: it is shown, read-only, once generated.
         assert bound["functional_record_id"]["widget-readonly"] and not bound["functional_record_id"]["widget-required"]
+        # "section-editable": true would override that read-only flag in the staff portal.
+        assert "section-editable" not in sections[0].section_ui_schema
         assert bound["programme_cluster_code"]["widget-label"] == "Programme Cluster Code"
         assert not bound["programme_cluster_code"]["widget-required"]
         for field, attribute in (("crop", "CROP_COMMODITY"), ("agro_ecological_zone", "AGRO_ECOLOGICAL_ZONE"),
@@ -227,7 +229,8 @@ async def test_upgrade_moves_typed_codes_to_programme_cluster_code(database):
                 {"s": json.dumps(old_schema), "r": CLUSTER})
             await conn.execute(text(
                 "UPDATE g2p_register_sections SET section_ui_schema = jsonb_set(section_ui_schema, "
-                "'{panels,0,panels,0}', CAST(:p AS jsonb)) WHERE section_id = 'cluster_cluster_details_section_01'"),
+                "'{panels,0,panels,0}', CAST(:p AS jsonb)) || CAST('{\"section-editable\": true}' AS jsonb) "
+                "WHERE section_id = 'cluster_cluster_details_section_01'"),
                 {"p": json.dumps(old_panel)})
             for n, code in enumerate(rows):
                 await conn.execute(text(
