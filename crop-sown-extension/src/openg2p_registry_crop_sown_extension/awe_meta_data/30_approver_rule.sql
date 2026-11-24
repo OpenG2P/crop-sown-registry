@@ -1,5 +1,6 @@
--- Approvers are the platform chart's demo staff users (keycloak-init creates
--- alex.carter and nina.patel for every registry release).
+-- Sample data: approvers are the platform chart's demo staff users
+-- (alex.carter, nina.patel), which db-seed creates with Load Sample Data, the
+-- only time it applies these policies.
 INSERT INTO "public"."approver_rule" (
     "id",
     "stage_id",

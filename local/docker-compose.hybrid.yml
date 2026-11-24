@@ -146,7 +146,6 @@ services:
       PGDATABASE: csr_dev
       PGUSER: csr_dev_user
       PGPASSWORD: ${CSR_DB_PASSWORD}
-      LOAD_TEMPLATES: "true"
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin

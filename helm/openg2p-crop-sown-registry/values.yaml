@@ -74,7 +74,6 @@ registry:
     # task creates them through the APIs (celeryWorker.envVars above).
     loadSampleData: false
     loadImages: false
-    loadTemplates: true
     # Code lists are NOT seeded or copied into this registry: activity reference
     # checks read every list (crop, season, seed, fertiliser, pest, ...) live
     # from Master Data. They are the ETH pack's agriculture domain, loaded by the
@@ -117,6 +116,8 @@ registry:
   # AWE (cluster change requests and intake forms): nothing to set. The
   # openg2p-registry chart enables it by default (global.aweEnabled: true) and,
   # as for the Farmer Registry, points at the shared AWE in commons-services;
-  # db-seed then runs awe_meta_data/ (the Cluster policies and this release's
-  # callback secret) against the shared AWE database, and keycloak-init creates
-  # the approvers alex.carter / nina.patel the policies name.
+  # db-seed then writes this release's callback secret to the shared AWE
+  # database. The Cluster approval policies (awe_meta_data/) and the demo
+  # approvers alex.carter / nina.patel they name are sample data: db-seed loads
+  # them only with loadSampleData. In production the policies are set up in
+  # AWE's admin portal.
