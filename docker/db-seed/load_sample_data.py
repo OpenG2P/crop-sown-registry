@@ -15,8 +15,12 @@ geo_code_hierarchy_json is the woreda's ancestry read from Master Data through
 its API (/catalogue/get_geo_unit with its ancestors, via the platform's
 /seed/mds_client.py and the MDS_* env the chart passes), in the shape
 registry-core's G2PGeoHierarchyService produces at runtime. Master Data's
-database is never read. If Master Data is unreachable the woreda id is still
-stored and the hierarchy is left empty.
+database is never read.
+
+There is no fallback. The sample clusters are Ethiopia's (the ETH country pack):
+without Master Data, or when it holds another country (a cluster's woreda is not
+in its geography), the loader stops with the reason rather than store clusters
+that are not the country's.
 
 Sample crop-season activities are not loaded here: they go through the activity
 APIs (the platform's sample task), not straight into tables.
@@ -82,33 +86,36 @@ def env(name: str) -> str:
     return value
 
 
+class SampleDataError(Exception):
+    """The sample clusters cannot be loaded as the country's: db-seed stops with the reason."""
+
+
 def master_data():
-    """The platform's Master Data API client, or None (logged) when unavailable."""
+    """The platform's Master Data API client."""
     try:
         from mds_client import MdsClient  # /seed/mds_client.py, from the RP db-seed base image
     except ImportError:
-        log("mds_client.py is not in this image — clusters are stored without a geo hierarchy.")
-        return None
+        raise SampleDataError("mds_client.py is not in this image (it ships in the registry-platform "
+                              "db-seed image)") from None
     client = MdsClient.from_env()
     if client is None:
-        log("MDS_API_URL not set — clusters are stored without a geo hierarchy.")
+        raise SampleDataError("MDS_API_URL is not set: the sample clusters are placed by Master Data's "
+                              "geography, so Master Data is needed")
     return client
 
 
 def geo_hierarchy(woreda: str, client):
-    """The woreda's ancestry, root first, or None when Master Data does not know it."""
-    if client is None:
-        return None
+    """The woreda's ancestry, root first."""
     from mds_client import MdsError
 
     try:
         hierarchy = client.geo_hierarchy_json(woreda)
     except MdsError as exc:
-        log(f"could not read woreda {woreda} from master-data ({exc}) — stored without a geo hierarchy.")
-        return None
+        raise SampleDataError(f"woreda {woreda} could not be read from Master Data ({exc})") from None
     if not hierarchy:
-        log(f"woreda {woreda} is not in master-data — stored without a geo hierarchy.")
-        return None
+        raise SampleDataError(
+            f"woreda {woreda} is not in Master Data's geography: the sample clusters are Ethiopia's "
+            "(ETH country pack). Install with the ETH pack, or turn Load Sample Data off")
     return Json(hierarchy)
 
 
@@ -120,6 +127,8 @@ def search_text(cluster: dict) -> str:
 
 def main() -> None:
     mds = master_data()
+    # Every cluster's area first, so a country mismatch stops before anything is written.
+    trees = {c["internal_record_id"]: geo_hierarchy(c["geo_lowest_level_value_id"], mds) for c in CLUSTERS}
     columns = [
         "internal_record_id", "functional_record_id", "record_name",
         "created_by", "created_at", "last_approved_at", "last_approved_by",
@@ -144,7 +153,7 @@ def main() -> None:
                     cluster["internal_record_id"], cluster["functional_record_id"], cluster["cluster_name"],
                     SEEDER, CREATED_AT, CREATED_AT, SEEDER,
                     search_text(cluster), "ACTIVE", cluster["geo_lowest_level_value_id"],
-                    geo_hierarchy(cluster["geo_lowest_level_value_id"], mds),
+                    trees[cluster["internal_record_id"]],
                     *(cluster[f] for f in FIELDS),
                 ])
                 inserted += cur.rowcount
@@ -158,4 +167,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SampleDataError as exc:
+        print(f"[load-sample-data] ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
