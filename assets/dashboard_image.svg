@@ -1,0 +1,80 @@
+<!-- Crop Sown Registry: the staff portal home page's dashboard image (theme value dashboard_image).
+     Edit here, then regenerate the base64 in meta_data/registry-configurations/g2p_registry_theme_values.sql. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1419" height="335" viewBox="0 0 1419 335" fill="none" role="img" aria-label="Crop fields in rows under the sun; a farmer harvests wheat while a cluster coordinator records the season on a clipboard, beside a granary">
+  <circle cx="1240" cy="70" r="46" fill="#F6C945"></circle>
+  <circle cx="1240" cy="70" r="66" fill="#F6C945" opacity="0.25"></circle>
+
+  <path d="M0 230 C 180 190, 360 200, 520 222 C 700 246, 880 196, 1060 206 C 1220 214, 1330 230, 1419 222 L1419 335 L0 335 Z" fill="#5E9A35"></path>
+  <path d="M0 262 C 220 236, 420 248, 640 262 C 860 276, 1060 244, 1260 254 C 1340 258, 1390 262, 1419 260 L1419 335 L0 335 Z" fill="#E2B04A"></path>
+  <path d="M0 292 C 260 276, 520 284, 760 294 C 980 302, 1200 286, 1419 290 L1419 335 L0 335 Z" fill="#3F7A24"></path>
+
+  <g stroke="#4B8A2B" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.9">
+    <path d="M60 236 Q300 204 520 232"></path>
+    <path d="M40 250 Q300 220 560 246"></path>
+    <path d="M900 214 Q1060 196 1220 216"></path>
+    <path d="M880 230 Q1060 212 1260 232"></path>
+  </g>
+  <g stroke="#C9963A" stroke-width="4" stroke-linecap="round" fill="none">
+    <path d="M120 276 Q380 254 640 272"></path>
+    <path d="M760 282 Q1000 260 1240 270"></path>
+  </g>
+
+  <g>
+    <path d="M300 318 L300 248 L360 220 L420 248 L420 318 Z" fill="#FFFFFF" stroke="#323459" stroke-width="5" stroke-linejoin="round"></path>
+    <path d="M286 252 Q360 176 434 252 Z" fill="#B5652E"></path>
+    <rect x="346" y="270" width="28" height="48" rx="3" fill="#323459"></rect>
+    <path d="M440 318 Q436 290 456 282 Q476 290 472 318 Z" fill="#EAB54B" stroke="#7A4A35" stroke-width="3"></path>
+    <path d="M478 318 Q474 294 492 288 Q510 294 506 318 Z" fill="#EAB54B" stroke="#7A4A35" stroke-width="3"></path>
+  </g>
+
+  <g>
+    <path d="M690 318 L692 258 L708 258 L710 318 Z" fill="#323459"></path>
+    <path d="M714 318 L716 258 L732 258 L732 318 Z" fill="#323459"></path>
+    <path d="M684 264 L688 190 Q710 172 734 190 L738 264 Z" fill="#2E5E1E"></path>
+    <rect x="726" y="202" width="36" height="46" rx="4" fill="#7A4A35"></rect>
+    <rect x="731" y="208" width="26" height="36" rx="2" fill="#FFFFFF"></rect>
+    <path d="M736 218 H752 M736 226 H752 M736 234 H746" stroke="#2E5E1E" stroke-width="3" stroke-linecap="round"></path>
+    <circle cx="710" cy="160" r="19" fill="#9E5D59"></circle>
+    <path d="M688 156 Q710 124 734 156 Z" fill="#F6C945"></path>
+    <rect x="682" y="152" width="58" height="7" rx="3" fill="#B5652E"></rect>
+  </g>
+
+  <g>
+    <path d="M876 318 Q874 278 886 262 L904 262 Q912 286 912 318 Z" fill="#323459"></path>
+    <path d="M858 268 Q852 214 872 190 Q900 176 916 196 L928 262 Z" fill="#F77F57"></path>
+    <circle cx="886" cy="160" r="18" fill="#FFCEB3"></circle>
+    <path d="M866 156 Q868 136 888 136 Q906 138 904 158 Q894 148 876 152 Z" fill="#342939"></path>
+    <path d="M916 212 L950 236" stroke="#FFCEB3" stroke-width="9" stroke-linecap="round"></path>
+    <path d="M950 236 Q980 226 984 202 Q972 214 954 216" fill="none" stroke="#82848A" stroke-width="6" stroke-linecap="round"></path>
+    <rect x="944" y="228" width="16" height="10" rx="3" fill="#7A4A35"></rect>
+  </g>
+
+  <g stroke="#C9963A" stroke-width="4" stroke-linecap="round" fill="none">
+    <path d="M40 335 Q46 280 56 232"></path>
+    <path d="M70 335 Q72 276 78 224"></path>
+    <path d="M100 335 Q98 282 94 236"></path>
+    <path d="M1010 335 Q1014 282 1022 232"></path>
+    <path d="M1040 335 Q1042 276 1046 222"></path>
+    <path d="M1070 335 Q1068 282 1064 236"></path>
+    <path d="M1340 335 Q1344 282 1352 234"></path>
+    <path d="M1372 335 Q1372 276 1376 226"></path>
+  </g>
+  <g fill="#E8B84E">
+    <ellipse cx="56" cy="222" rx="7" ry="20" transform="rotate(12 56 222)"></ellipse>
+    <ellipse cx="78" cy="212" rx="7" ry="20" transform="rotate(4 78 212)"></ellipse>
+    <ellipse cx="94" cy="226" rx="7" ry="20" transform="rotate(-8 94 226)"></ellipse>
+    <ellipse cx="1022" cy="222" rx="7" ry="20" transform="rotate(12 1022 222)"></ellipse>
+    <ellipse cx="1046" cy="210" rx="7" ry="20" transform="rotate(4 1046 210)"></ellipse>
+    <ellipse cx="1064" cy="226" rx="7" ry="20" transform="rotate(-8 1064 226)"></ellipse>
+    <ellipse cx="1352" cy="224" rx="7" ry="20" transform="rotate(12 1352 224)"></ellipse>
+    <ellipse cx="1376" cy="214" rx="7" ry="20" transform="rotate(4 1376 214)"></ellipse>
+  </g>
+  <g fill="#4B8A2B">
+    <path d="M150 335 Q140 300 150 280 Q160 300 150 335 Z"></path>
+    <path d="M172 335 Q160 296 174 270 Q186 298 172 335 Z"></path>
+    <path d="M194 335 Q184 302 194 284 Q204 302 194 335 Z"></path>
+    <path d="M1180 335 Q1170 300 1180 280 Q1190 300 1180 335 Z"></path>
+    <path d="M1202 335 Q1190 296 1204 270 Q1216 298 1202 335 Z"></path>
+    <path d="M1224 335 Q1214 302 1224 284 Q1234 302 1224 335 Z"></path>
+  </g>
+</svg>
