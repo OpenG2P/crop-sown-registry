@@ -36,6 +36,14 @@ global:
   # rollback mode only.
 
 registry:
+  # Staff portal UI built here (ui/staff-ui): the platform's UI source cloned
+  # at deps.json's ref, with this registry's overrides/ copied on top. CI
+  # rewrites the tag with the other images.
+  staffUi:
+    image:
+      repository: openg2p/openg2p-crop-sown-registry-staff-ui
+      tag: 0.0.0-develop
+
   # Crop-sown images, each FROM the matching openg2p-registry base image. CI
   # rewrites these tags to the freshly built version.
   staffApi:
